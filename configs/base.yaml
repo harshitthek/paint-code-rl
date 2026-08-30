@@ -1,0 +1,35 @@
+
+run:
+  experiment_name: "phase0-baseline"
+  seed: 42
+  log_level: "INFO"
+model:
+  id: "Qwen/Qwen2.5-Coder-7B-Instruct"
+  revision: "main"
+  device_map: "auto"
+training:
+  batch_size: 16
+  group_size: 4
+  max_steps: 200
+  checkpoint_freq: 50
+generation:
+  max_new_tokens: 512
+  temperature: 0.7
+  top_p: 0.9
+renderer:
+  host: "127.0.0.1"
+  port: 3000
+  timeout_ms: 5000
+  max_inflight_renders: 10
+reward:
+  weights:
+    compile: 0.10
+    hpsv3: 0.30
+    pairwise: 0.60
+judge:
+  provider: "openai"
+  model: "gpt-4o-mini"
+storage:
+  type: "local"
+  base_path: "artifacts"
+  datasets_path: "datasets"

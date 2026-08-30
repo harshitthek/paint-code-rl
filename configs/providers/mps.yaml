@@ -1,0 +1,8 @@
+provider: local_mps
+storage:
+  base_path: artifacts
+  datasets_path: datasets
+
+# Fallback environment variable requirement
+env_vars:
+  PYTORCH_ENABLE_MPS_FALLBACK: "1"

@@ -1,0 +1,3 @@
+safety:
+  allow_external_apis: true
+  max_gpu_cost: -1

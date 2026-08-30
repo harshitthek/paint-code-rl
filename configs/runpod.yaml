@@ -1,0 +1,4 @@
+
+storage:
+  base_path: "/workspace/artifacts"
+  datasets_path: "/workspace/datasets"

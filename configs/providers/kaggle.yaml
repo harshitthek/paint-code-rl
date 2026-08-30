@@ -1,0 +1,3 @@
+storage:
+  base_path: /kaggle/working/artifacts
+  datasets_path: /kaggle/input/painting-dataset

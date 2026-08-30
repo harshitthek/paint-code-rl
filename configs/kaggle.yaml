@@ -1,0 +1,6 @@
+
+storage:
+  base_path: "/kaggle/working/artifacts"
+  datasets_path: "/kaggle/input/painting-dataset"
+training:
+  batch_size: 8 # Fit in T4x2

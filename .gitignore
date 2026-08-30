@@ -1,0 +1,109 @@
+# Python
+__pycache__/
+*.py[cod]
+*.class
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.env.*
+
+# Tests
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS specific
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Tt]humbs.db
+[Dd]esktop.ini
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Project specific
+artifacts/*
+runs/*
+logs/*
+checkpoints/*
+outputs/*
+models/*
+datasets/*
+!datasets/README.md
+
+# Large files
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.ckpt
+*.db
+*.sqlite
+*.sqlite3
+
+# Image files
+*.png
+*.jpg
+*.jpeg
+*.webp
+
+# Antigravity/Gemini internals
+.gemini/
+.system_generated/
+.user_uploaded/
+brain/
+*task.md*
+*walkthrough.md*

@@ -1,0 +1,2 @@
+safety:
+  allow_external_apis: false
