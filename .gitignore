@@ -76,13 +76,20 @@ ehthumbs_vista.db
 
 # Project specific
 artifacts/*
+!artifacts/.gitkeep
 runs/*
+!runs/.gitkeep
 logs/*
 checkpoints/*
 outputs/*
 models/*
 datasets/*
 !datasets/README.md
+!datasets/VERSION.md
+!datasets/prompts_v1.jsonl
+!datasets/validation.jsonl
+!datasets/test.jsonl
+*.metadata.json
 
 # Large files
 *.safetensors

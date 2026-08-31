@@ -245,7 +245,6 @@ def phase_async_benchmark():
     record_phase("Async_Benchmark", "PASS", {"status": "Placeholder for full timing framework."})
 
 def phase_cost_safety():
-    from configs.modes import free
     import yaml
     free_cfg = os.path.join(project_root, "configs", "modes", "free.yaml")
     with open(free_cfg, "r") as f:

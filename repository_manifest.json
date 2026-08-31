@@ -1,0 +1,138 @@
+{
+  "schema_version": "1.0.0",
+  "repository": {
+    "name": "paint-code-rl",
+    "url": "https://github.com/harshitthek/paint-code-rl",
+    "branch": "main",
+    "git_commit": "33bf78e8fda7ac900cc42c079be37ababba5e309",
+    "tag": "v0.1.0-phase0",
+    "phase": "Phase-0 (Hardware Validation Release)"
+  },
+  "runtime_environments": {
+    "python_target": ">=3.10, <3.12 (Tested: 3.11.0 on M4 macOS, 3.11.9 on Windows)",
+    "node_target": ">=18.0.0 (Tested: v20.x)",
+    "core_python_dependencies": {
+      "torch": "2.5.1",
+      "transformers": "4.49.0",
+      "trl": "0.15.1",
+      "peft": ">=0.14.0",
+      "accelerate": ">=0.28.0",
+      "pydantic": ">=2.0.0",
+      "safetensors": ">=0.4.0",
+      "datasets": ">=2.14.0",
+      "Pillow": ">=10.0.0",
+      "pyyaml": ">=6.0",
+      "tenacity": ">=8.2.0",
+      "requests": ">=2.31.0",
+      "psutil": ">=5.9.0",
+      "pytest": ">=8.0.0"
+    },
+    "node_dependencies": {
+      "puppeteer": "^23.4.0",
+      "express": "^4.22.2",
+      "pixelmatch": "^7.2.0",
+      "pngjs": "^7.0.0"
+    }
+  },
+  "renderer": {
+    "engine": "Puppeteer Headless WebGL2 (SwiftShader)",
+    "template_file": "renderer/template.html",
+    "template_sha256": "d85ce13db7a33c16ed1ba34fe41f479e106613a3a4aa5055c3908df485dd442a",
+    "sandbox_sha256": "06e5512d4582e96d0399281252d58e6c8ed3b5e7b12d3582bb949e36071858fc",
+    "p5js_sha256": "726ac96626b93f5bcaff83a910b6c60d3a9728f063e0eb73b5d0819ffc356915",
+    "p5brush_sha256": "693aaa1bcb1feb942dc1066b8c106683f1b1432027363ac233b11ff9cf709dab",
+    "p5brush_version": "1.1.2"
+  },
+  "models": [
+    {
+      "role": "policy",
+      "model_id": "Qwen/Qwen2.5-Coder-1.5B-Instruct",
+      "intended_backends": [
+        "mps",
+        "cuda:0",
+        "cpu"
+      ],
+      "precision": "float16 / bfloat16",
+      "license": "Apache-2.0",
+      "resolved_revision": "main"
+    },
+    {
+      "role": "policy_large",
+      "model_id": "Qwen/Qwen2.5-Coder-7B-Instruct",
+      "intended_backends": [
+        "cuda:0 (>=20GB VRAM)"
+      ],
+      "precision": "bfloat16",
+      "license": "Apache-2.0",
+      "resolved_revision": "main"
+    },
+    {
+      "role": "policy_small",
+      "model_id": "Qwen/Qwen2.5-Coder-0.5B-Instruct",
+      "intended_backends": [
+        "cpu"
+      ],
+      "precision": "float32",
+      "license": "Apache-2.0",
+      "resolved_revision": "main"
+    },
+    {
+      "role": "judge_vlm_local",
+      "model_id": "Qwen/Qwen2-VL-2B-Instruct",
+      "intended_backends": [
+        "mps",
+        "cuda",
+        "cpu"
+      ],
+      "precision": "float16",
+      "license": "Apache-2.0",
+      "resolved_revision": "main"
+    },
+    {
+      "role": "aesthetic_clip",
+      "model_id": "openai/clip-vit-large-patch14",
+      "intended_backends": [
+        "mps",
+        "cuda",
+        "cpu"
+      ],
+      "precision": "float32 / float16",
+      "license": "MIT",
+      "resolved_revision": "main"
+    }
+  ],
+  "datasets": {
+    "version": "1.0.0",
+    "train": {
+      "file": "datasets/prompts_v1.jsonl",
+      "count": 56,
+      "sha256": "951989b44771ed93a6c69901223d1304c4ac7c8760937bb5fc1c49fcfbd5f443"
+    },
+    "validation": {
+      "file": "datasets/validation.jsonl",
+      "count": 10,
+      "sha256": "96dab2f87681a2011fcf25b7a244538d8436bc18c27fa022b55f793608cd52d1"
+    },
+    "test": {
+      "file": "datasets/test.jsonl",
+      "count": 5,
+      "sha256": "3772f8234b5d4b111b4516a2cdb79248d751d166aaf50cf5054f431912eb4340"
+    },
+    "version_spec_sha256": "4ac419ea63e6edebe9645ee34b9dda381f3fa813e2ff5326be5b392a38eeb18c"
+  },
+  "reward_configuration": {
+    "reward_version": "2.0",
+    "judge_version": "2.0",
+    "weights": {
+      "compile": 0.1,
+      "aesthetic_hpsv3": 0.3,
+      "pairwise": 0.6
+    },
+    "execution_modes": [
+      "DRY_RUN",
+      "FREE",
+      "LOCAL",
+      "PAID"
+    ]
+  }
+}
