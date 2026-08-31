@@ -47,8 +47,8 @@ app.post('/render', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, async () => {
-    console.log(Renderer server listening on port );
+app.listen(PORT, '0.0.0.0', async () => {
+    console.log(`Renderer server listening on port ${PORT}`);
     try {
         require('./print_hashes.js');
     } catch (e) {}

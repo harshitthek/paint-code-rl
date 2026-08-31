@@ -15,11 +15,15 @@ class RendererService:
         self._proc = None
 
     def is_healthy(self) -> bool:
-        try:
-            r = requests.get(f"{self.base_url}/health", timeout=1.5)
-            return r.status_code == 200 and r.json().get("status") == "ok"
-        except Exception:
-            return False
+        for url in [self.base_url, f"http://localhost:{self.port}"]:
+            try:
+                r = requests.get(f"{url}/health", timeout=1.0)
+                if r.status_code == 200 and r.json().get("status") == "ok":
+                    self.base_url = url
+                    return True
+            except Exception:
+                pass
+        return False
 
     def ensure_started(self, max_wait_sec: int = 10) -> bool:
         if self.is_healthy():
@@ -41,18 +45,30 @@ class RendererService:
         env = os.environ.copy()
         env["PORT"] = str(self.port)
         
-        self._proc = subprocess.Popen(
-            ["node", "server.js"],
-            cwd=renderer_dir,
-            env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
-        )
-        atexit.register(self.shutdown)
+        try:
+            self._proc = subprocess.Popen(
+                ["node", "server.js"],
+                cwd=renderer_dir,
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+            atexit.register(self.shutdown)
+        except Exception as e:
+            print(f"[ERROR] Failed to spawn node process: {e}")
+            return False
 
         # Wait for health
         start_t = time.time()
         while time.time() - start_t < max_wait_sec:
+            if self._proc.poll() is not None:
+                stdout, stderr = self._proc.communicate()
+                print(f"[ERROR] Node.js renderer process exited with code {self._proc.returncode}!")
+                if stderr:
+                    print(f"Stderr: {stderr}")
+                return False
+                
             if self.is_healthy():
                 print(f"✅ Renderer service is ready at {self.base_url}")
                 return True
