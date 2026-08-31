@@ -9,6 +9,10 @@ let inflight = 0;
 let jobsProcessed = 0;
 const RESTART_AFTER = 100;
 
+app.get('/health', (req, res) => {
+    res.json({ status: 'ok', inflight, jobsProcessed });
+});
+
 app.post('/render', async (req, res) => {
     if (inflight >= MAX_INFLIGHT) {
         return res.status(429).json({ success: false, error_classification: "RENDERER_OVERLOAD", runtime_error: "Too many concurrent requests" });
@@ -44,6 +48,8 @@ app.post('/render', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, async () => {
-    console.log(`Renderer server listening on port ${PORT}`);
-    require('./print_hashes.js');
+    console.log(Renderer server listening on port );
+    try {
+        require('./print_hashes.js');
+    } catch (e) {}
 });
