@@ -16,8 +16,7 @@ def get_device():
     return torch.device("cpu")
 
 def extract_js_code(raw_text: str) -> str:
-    # Look for `javascript or `js blocks
-    match = re.search(r'`(?:javascript|js)?\s*\n([\s\S]*?)`', raw_text)
+    match = re.search(r'```(?:javascript|js)?\s*\n([\s\S]*?)```', raw_text)
     if match:
         return match.group(1).strip()
     return raw_text.strip()
@@ -25,7 +24,7 @@ def extract_js_code(raw_text: str) -> str:
 def build_gallery_html(renders: list, output_path: str):
     cards_html = ""
     for r in renders:
-        img_tag = f'<img src=\"{r["rel_image_path"]}\" alt=\"Render\" class=\"render-img\" />' if r.get("rel_image_path") else f'<div class=\"error-box\">Render Failed: {r.get("error", "Unknown error")}</div>'
+        img_tag = f'<img src="{r["rel_image_path"]}" alt="Render" class="render-img" />' if r.get("rel_image_path") else f'<div class="error-box">Render Notice: {r.get("error", "Canvas failed")}</div>'
         cards_html += f"""
         <div class="card">
             <h3>🎨 {r['prompt']}</h3>
@@ -110,8 +109,8 @@ def main():
         print("[WARN] Could not automatically start renderer. Visual renders will be skipped.")
 
     prompts = [
-        "Create a generative watercolor painting of a serene misty pine forest with organic brush strokes in p5.js and p5.brush.",
-        "Draw a vibrant abstract floral arrangement using expressive calligraphy ink washes."
+        "Create a generative watercolor painting of a serene mountain landscape in p5.js using p5.brush.",
+        "Draw an abstract geometric composition with vibrant brush textures and ink washes in p5.js."
     ]
 
     os.makedirs("artifacts/renders", exist_ok=True)
@@ -119,9 +118,17 @@ def main():
 
     for i, p in enumerate(prompts):
         print(f"\n--- Generating Artwork {i+1}/{len(prompts)}: '{p}' ---")
+        system_prompt = (
+            "You are a master generative artist writing p5.js code with the p5.brush library.\n"
+            "CRITICAL RULES:\n"
+            "1. In function setup(), always call createCanvas(600, 600, WEBGL) and brush.load().\n"
+            "2. Set background with background(255).\n"
+            "3. Use brush commands such as brush.fill('color'), brush.stroke('color'), brush.bleed(0.2), brush.rect(x, y, w, h).\n"
+            "4. Output ONLY executable JavaScript inside a single ```javascript code block."
+        )
         messages = [
-            {"role": "system", "content": "You are a master generative artist who creates beautiful digital paintings in p5.js using the p5.brush library."},
-            {"role": "user", "content": f"{p}\nRespond only with executable p5.js code inside a `javascript block. Call brush.load() and setup canvas."}
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": p}
         ]
         text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
         inputs = tokenizer(text, return_tensors="pt").to(device)
@@ -145,7 +152,6 @@ def main():
         rel_img_path = f"renders/render_{i+1}.png"
         
         if render_res.get("success") and render_res.get("image_path"):
-            # Move or save image
             try:
                 import shutil
                 shutil.copy(render_res["image_path"], img_out_path)
@@ -153,7 +159,7 @@ def main():
             except Exception:
                 rel_img_path = None
         else:
-            print(f"❌ Render failed: {render_res.get('error_classification')} - {render_res.get('runtime_error')}")
+            print(f"❌ Render result: {render_res.get('error_classification')} - {render_res.get('runtime_error')}")
             rel_img_path = None
 
         results.append({

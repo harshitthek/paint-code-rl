@@ -26,7 +26,7 @@ async function initBrowser() {
 async function renderCode(code, seed, runId) {
     const b = await initBrowser();
     const page = await b.newPage();
-    page.setDefaultTimeout(4000);
+    page.setDefaultTimeout(5000);
     
     await page.setRequestInterception(true);
     page.on('request', request => {
@@ -59,7 +59,7 @@ async function renderCode(code, seed, runId) {
             safeCode = safeCode.replace(/function\s+setup\s*\(\)\s*\{/, "function setup() { randomSeed(" + seed + "); noiseSeed(" + seed + "); ");
         }
         
-        // Wrap code with automated render completion signal
+        // Automated Lifecycle & WebGL Guard Hook
         const autoSignalWrapper = `
 ${safeCode}
 
@@ -67,16 +67,20 @@ ${safeCode}
 (function() {
     const origSetup = typeof window.setup === 'function' ? window.setup : null;
     window.setup = function() {
+        // Ensure p5.brush is loaded
+        if (typeof brush !== 'undefined' && typeof brush.load === 'function') {
+            try { brush.load(); } catch(e) {}
+        }
         if (origSetup) {
             origSetup();
         }
         setTimeout(function() {
             window.renderComplete = true;
-        }, 200);
+        }, 300);
     };
     setTimeout(function() {
         window.renderComplete = true;
-    }, 1500);
+    }, 2000);
 })();
 `;
         
@@ -89,7 +93,7 @@ ${safeCode}
         await page.goto(fileUrl, { waitUntil: 'load' });
         
         try {
-            await page.waitForFunction('window.renderComplete === true', { timeout: 3000 });
+            await page.waitForFunction('window.renderComplete === true', { timeout: 4000 });
         } catch(e) {
             if (error_classification === 'SUCCESS') {
                 error_classification = 'TIMEOUT';
