@@ -1,0 +1,10 @@
+{"prompt_id": "val_flower_001", "prompt": "A single delicate snowdrop flower emerging from snow", "category": "flower", "difficulty": "medium"}
+{"prompt_id": "val_flower_002", "prompt": "Stylized pop-art arrangement of tropical hibiscus", "category": "flower", "difficulty": "easy"}
+{"prompt_id": "val_landscape_001", "prompt": "A vast tundra under a pale winter sun", "category": "landscape", "difficulty": "medium"}
+{"prompt_id": "val_landscape_002", "prompt": "A surreal landscape with floating islands and waterfalls", "category": "landscape", "difficulty": "hard"}
+{"prompt_id": "val_geometric_001", "prompt": "Tessellating hexagons with a smooth color gradient", "category": "geometric", "difficulty": "easy"}
+{"prompt_id": "val_geometric_002", "prompt": "Complex wireframe structure forming a hypercube", "category": "geometric", "difficulty": "hard"}
+{"prompt_id": "val_scene_001", "prompt": "A vintage train traveling through a snowy pass", "category": "scene", "difficulty": "hard"}
+{"prompt_id": "val_scene_002", "prompt": "A peaceful zen garden with raked sand and stones", "category": "scene", "difficulty": "medium"}
+{"prompt_id": "val_sky_001", "prompt": "Crepuscular rays shining through heavy storm clouds", "category": "sky", "difficulty": "medium"}
+{"prompt_id": "val_sky_002", "prompt": "A minimalist night sky with a crescent moon", "category": "sky", "difficulty": "easy"}

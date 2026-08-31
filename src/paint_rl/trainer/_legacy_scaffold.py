@@ -7,7 +7,7 @@ import uuid
 from paint_rl.config import core as config
 from paint_rl.telemetry.core import ExperimentLogger
 
-logger = ExperimentLogger(config_hash=config.CONFIG_HASH)
+logger = ExperimentLogger(config_hash=config.CONFIG_HASH or "uninitialized")
 
 def init_db():
     db_path = os.path.join(config.ACTIVE_CONFIG.storage.base_path, "metrics.db")

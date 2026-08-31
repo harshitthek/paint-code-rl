@@ -1,0 +1,57 @@
+{"prompt_id": "flower_001", "prompt": "Paint a field of wildflowers with soft watercolor washes and organic brush textures", "category": "flower", "difficulty": "medium"}
+{"prompt_id": "flower_002", "prompt": "A single blooming rose in the style of botanical illustration, highly detailed", "category": "flower", "difficulty": "hard"}
+{"prompt_id": "flower_003", "prompt": "Abstract representation of sunflowers using bold geometric shapes and bright yellows", "category": "flower", "difficulty": "easy"}
+{"prompt_id": "flower_004", "prompt": "Cherry blossoms falling in a gentle breeze, soft pink and white hues", "category": "flower", "difficulty": "medium"}
+{"prompt_id": "flower_005", "prompt": "A vibrant lotus flower floating on dark, moody water", "category": "flower", "difficulty": "medium"}
+{"prompt_id": "flower_006", "prompt": "Daisy field under a clear blue sky, impressionist style", "category": "flower", "difficulty": "easy"}
+{"prompt_id": "flower_007", "prompt": "An orchid with intricate patterns, macro view, hyper-realistic", "category": "flower", "difficulty": "hard"}
+{"prompt_id": "tree_001", "prompt": "A towering oak tree in autumn, with leaves of gold and crimson", "category": "tree", "difficulty": "medium"}
+{"prompt_id": "tree_002", "prompt": "Silhouettes of pine trees against a misty morning background", "category": "tree", "difficulty": "easy"}
+{"prompt_id": "tree_003", "prompt": "A weeping willow gracefully bending over a calm pond", "category": "tree", "difficulty": "medium"}
+{"prompt_id": "tree_004", "prompt": "Abstract forest made of vertical lines and splashes of green", "category": "tree", "difficulty": "easy"}
+{"prompt_id": "tree_005", "prompt": "A magical glowing tree in a dark enchanted forest", "category": "tree", "difficulty": "hard"}
+{"prompt_id": "tree_006", "prompt": "Bare winter trees with snow-covered branches", "category": "tree", "difficulty": "medium"}
+{"prompt_id": "tree_007", "prompt": "A baobab tree at sunset in the savanna", "category": "tree", "difficulty": "medium"}
+{"prompt_id": "landscape_001", "prompt": "Rolling green hills with a small cottage in the distance", "category": "landscape", "difficulty": "medium"}
+{"prompt_id": "landscape_002", "prompt": "Majestic snow-capped mountains under a starry sky", "category": "landscape", "difficulty": "hard"}
+{"prompt_id": "landscape_003", "prompt": "A serene valley with a winding river and lush vegetation", "category": "landscape", "difficulty": "medium"}
+{"prompt_id": "landscape_004", "prompt": "Desert landscape with sand dunes and a blazing sun", "category": "landscape", "difficulty": "easy"}
+{"prompt_id": "landscape_005", "prompt": "Minimalist horizon line with subtle gradients of color", "category": "landscape", "difficulty": "easy"}
+{"prompt_id": "landscape_006", "prompt": "A dramatic canyon with deep red rock formations", "category": "landscape", "difficulty": "hard"}
+{"prompt_id": "landscape_007", "prompt": "Lush tropical jungle landscape with dense foliage", "category": "landscape", "difficulty": "medium"}
+{"prompt_id": "landscape_008", "prompt": "Foggy moorland with muted colors and sparse vegetation", "category": "landscape", "difficulty": "medium"}
+{"prompt_id": "geometric_001", "prompt": "A complex mandala pattern with radiating symmetry", "category": "geometric", "difficulty": "hard"}
+{"prompt_id": "geometric_002", "prompt": "Overlapping translucent circles creating a colorful mosaic", "category": "geometric", "difficulty": "easy"}
+{"prompt_id": "geometric_003", "prompt": "A 3D illusion of floating cubes and spheres", "category": "geometric", "difficulty": "medium"}
+{"prompt_id": "geometric_004", "prompt": "Minimalist composition of intersecting lines and primary colors", "category": "geometric", "difficulty": "easy"}
+{"prompt_id": "geometric_005", "prompt": "Fractal-like geometric structures zooming infinitely", "category": "geometric", "difficulty": "hard"}
+{"prompt_id": "geometric_006", "prompt": "Op-art pattern with contrasting black and white stripes", "category": "geometric", "difficulty": "medium"}
+{"prompt_id": "geometric_007", "prompt": "Geometric abstraction inspired by Bauhaus design", "category": "geometric", "difficulty": "medium"}
+{"prompt_id": "scene_001", "prompt": "A cozy cafe interior with warm lighting and a steaming cup of coffee", "category": "scene", "difficulty": "hard"}
+{"prompt_id": "scene_002", "prompt": "A park bench under a streetlamp at night, raining softly", "category": "scene", "difficulty": "medium"}
+{"prompt_id": "scene_003", "prompt": "A small boat docked at a quiet wooden pier", "category": "scene", "difficulty": "medium"}
+{"prompt_id": "scene_004", "prompt": "A futuristic cityscape with flying cars and neon lights", "category": "scene", "difficulty": "hard"}
+{"prompt_id": "scene_005", "prompt": "A quiet reading nook with an open book and reading glasses", "category": "scene", "difficulty": "easy"}
+{"prompt_id": "scene_006", "prompt": "A bustling market street with colorful awnings", "category": "scene", "difficulty": "hard"}
+{"prompt_id": "scene_007", "prompt": "A picnic setup on a checkered blanket in a grassy field", "category": "scene", "difficulty": "medium"}
+{"prompt_id": "animal_001", "prompt": "A majestic lion composed of dynamic, sweeping brushstrokes", "category": "animal", "difficulty": "medium"}
+{"prompt_id": "animal_002", "prompt": "A geometric origami crane in bright orange and pink", "category": "animal", "difficulty": "easy"}
+{"prompt_id": "animal_003", "prompt": "A flock of birds flying in a V-formation against the sunset", "category": "animal", "difficulty": "easy"}
+{"prompt_id": "animal_004", "prompt": "A detailed close-up of a butterfly wing's iridescent patterns", "category": "animal", "difficulty": "hard"}
+{"prompt_id": "animal_005", "prompt": "An abstract, fluid interpretation of a jellyfish glowing in the deep", "category": "animal", "difficulty": "medium"}
+{"prompt_id": "animal_006", "prompt": "A galloping horse drawn with continuous line art", "category": "animal", "difficulty": "medium"}
+{"prompt_id": "animal_007", "prompt": "A mysterious owl perched in moonlight, dark fantasy style", "category": "animal", "difficulty": "medium"}
+{"prompt_id": "water_001", "prompt": "Crashing ocean waves against a rocky cliff, expressionist style", "category": "water", "difficulty": "hard"}
+{"prompt_id": "water_002", "prompt": "A still, glassy lake reflecting the surrounding trees perfectly", "category": "water", "difficulty": "medium"}
+{"prompt_id": "water_003", "prompt": "Abstract depiction of a babbling brook with swirling blues and whites", "category": "water", "difficulty": "easy"}
+{"prompt_id": "water_004", "prompt": "Raindrops creating ripples in a small puddle", "category": "water", "difficulty": "easy"}
+{"prompt_id": "water_005", "prompt": "A powerful waterfall cascading down into a misty basin", "category": "water", "difficulty": "medium"}
+{"prompt_id": "water_006", "prompt": "Underwater scene with dappled sunlight penetrating the depths", "category": "water", "difficulty": "hard"}
+{"prompt_id": "water_007", "prompt": "A stormy sea with turbulent dark waters and whitecaps", "category": "water", "difficulty": "medium"}
+{"prompt_id": "sky_001", "prompt": "A dramatic sunset with fiery red, orange, and purple clouds", "category": "sky", "difficulty": "medium"}
+{"prompt_id": "sky_002", "prompt": "Fluffy white cumulus clouds in a bright summer sky", "category": "sky", "difficulty": "easy"}
+{"prompt_id": "sky_003", "prompt": "The swirling green and purple lights of the aurora borealis", "category": "sky", "difficulty": "hard"}
+{"prompt_id": "sky_004", "prompt": "A starry night sky with a clearly visible Milky Way", "category": "sky", "difficulty": "medium"}
+{"prompt_id": "sky_005", "prompt": "A dark, moody sky just before a thunderstorm with lightning strikes", "category": "sky", "difficulty": "medium"}
+{"prompt_id": "sky_006", "prompt": "Abstract pastel sky blending soft pinks and blues", "category": "sky", "difficulty": "easy"}
+{"prompt_id": "sky_007", "prompt": "A sky filled with hundreds of hot air balloons", "category": "sky", "difficulty": "hard"}

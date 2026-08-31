@@ -5,6 +5,14 @@ import hashlib
 from pydantic import BaseModel, Field
 from typing import Dict, Optional, Any
 
+class SafetyConfig(BaseModel):
+    allow_external_apis: bool = False
+
+class AestheticConfig(BaseModel):
+    provider: str = "clip"
+    model: str = "openai/clip-vit-large-patch14"
+    device: str = "auto"
+
 class RunConfig(BaseModel):
     experiment_name: str
     seed: int = 42
@@ -50,6 +58,8 @@ class StorageConfig(BaseModel):
     datasets_path: str
 
 class ProjectConfig(BaseModel):
+    model_config = {"extra": "ignore"}
+
     run: RunConfig
     model: ModelConfig
     training: TrainingConfig
@@ -58,6 +68,8 @@ class ProjectConfig(BaseModel):
     reward: RewardConfig
     judge: JudgeConfig
     storage: StorageConfig
+    safety: SafetyConfig = SafetyConfig()
+    aesthetic: AestheticConfig = AestheticConfig()
 
 def deep_merge(dict1: dict, dict2: dict) -> dict:
     for k, v in dict2.items():
@@ -122,5 +134,10 @@ def load_config(env: str = "local") -> tuple[ProjectConfig, str, str]:
     
     return config, config_json, config_hash
 
-# Singleton pattern for the loaded config
-ACTIVE_CONFIG, CONFIG_JSON, CONFIG_HASH = load_config(os.environ.get("ENV", "local"))
+# Lazy singleton initialization
+ACTIVE_CONFIG, CONFIG_JSON, CONFIG_HASH = None, None, None
+try:
+    ACTIVE_CONFIG, CONFIG_JSON, CONFIG_HASH = load_config(os.environ.get("ENV", "local"))
+except Exception as e:
+    pass
+

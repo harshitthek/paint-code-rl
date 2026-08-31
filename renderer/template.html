@@ -3,8 +3,22 @@
 <head>
     <meta charset="utf-8">
     <title>p5.brush Renderer</title>
+    <script>
+        window.__FORCE_WEBGL = true;
+    </script>
     <!-- Vended locally -->
     <script src="assets/p5.min.js"></script>
+    <script>
+        // Must execute AFTER p5.js is loaded but BEFORE user code
+        (function() {
+            if (typeof p5 !== 'undefined') {
+                const _orig = p5.prototype.createCanvas;
+                p5.prototype.createCanvas = function(w, h, renderer) {
+                    return _orig.call(this, w || 600, h || 600, typeof WEBGL !== 'undefined' ? WEBGL : renderer);
+                };
+            }
+        })();
+    </script>
     <script src="assets/p5.brush.min.js"></script>
     <style>
         body { margin: 0; padding: 0; overflow: hidden; background: #ffffff; }
@@ -18,17 +32,6 @@
         window.signalRenderComplete = function() {
             window.renderComplete = true;
         };
-
-        // WebGL Guard: Automatically ensure createCanvas creates a WEBGL canvas for p5.brush
-        window.addEventListener('load', function() {
-            if (typeof p5 !== 'undefined') {
-                const originalCreateCanvas = p5.prototype.createCanvas;
-                p5.prototype.createCanvas = function(w, h, renderer) {
-                    // Force WEBGL renderer for p5.brush compatibility
-                    return originalCreateCanvas.call(this, w || 600, h || 600, typeof WEBGL !== 'undefined' ? WEBGL : renderer);
-                };
-            }
-        });
 
         // INJECT_CODE_HERE
     </script>

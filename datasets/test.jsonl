@@ -1,0 +1,5 @@
+{"prompt_id": "test_flower", "prompt": "A surrealistic bouquet of flowers that seem to be made of glass", "category": "flower", "difficulty": "hard"}
+{"prompt_id": "test_landscape", "prompt": "A post-apocalyptic wasteland landscape with rusted structures", "category": "landscape", "difficulty": "hard"}
+{"prompt_id": "test_geometric", "prompt": "An impossible Penrose triangle surrounded by concentric circles", "category": "geometric", "difficulty": "medium"}
+{"prompt_id": "test_scene", "prompt": "An empty theater stage illuminated by a single dramatic spotlight", "category": "scene", "difficulty": "medium"}
+{"prompt_id": "test_sky", "prompt": "A sci-fi sky with two massive moons and glowing nebulae", "category": "sky", "difficulty": "hard"}

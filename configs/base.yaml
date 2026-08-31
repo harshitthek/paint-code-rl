@@ -27,9 +27,15 @@ reward:
     hpsv3: 0.30
     pairwise: 0.60
 judge:
-  provider: "openai"
-  model: "gpt-4o-mini"
+  provider: "local"
+  model: "Qwen/Qwen2-VL-2B-Instruct"
 storage:
   type: "local"
   base_path: "artifacts"
   datasets_path: "datasets"
+safety:
+  allow_external_apis: false
+aesthetic:
+  provider: "clip"
+  model: "openai/clip-vit-large-patch14"
+  device: "auto"

@@ -5,7 +5,7 @@ import json
 import hashlib
 from paint_rl.storage.cache import CacheManager
 from paint_rl.config.core import load_config
-from paint_rl.trainer.train_grpo import save_experiment_state, resume_experiment_state
+from paint_rl.trainer._legacy_scaffold import save_experiment_state, resume_experiment_state
 from paint_rl.config import core as config
 
 def test_cache():

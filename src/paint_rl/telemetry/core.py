@@ -29,14 +29,20 @@ def get_hardware_fingerprint():
     return fingerprint
 
 class ExperimentLogger:
+    STATES = ["CREATED", "RUNNING", "PAUSED", "COMPLETED", "FAILED", "INTERRUPTED", "INVALIDATED"]
+
     def __init__(self, config_hash: str):
         self.run_id = f"run_{uuid.uuid4().hex[:8]}"
         self.config_hash = config_hash
         self.commit = get_git_commit()
         self.fingerprint = get_hardware_fingerprint()
+        self.state = "CREATED"
+        os.makedirs("artifacts/logs", exist_ok=True)
+        self.log_file = os.path.join("artifacts/logs", f"{self.run_id}.jsonl")
         
         # In a real system, we'd log this to JSON Lines or a DB.
         print(f"[{self.run_id}] Experiment started. Commit: {self.commit} | Config Hash: {self.config_hash}")
+        self._write_log({"event": "init", "commit": self.commit, "hash": self.config_hash})
         
     def log_step(self, step: int, metrics: dict):
         # Structured logging
@@ -46,6 +52,7 @@ class ExperimentLogger:
             **metrics
         }
         print(f"STEP_METRICS: {json.dumps(payload)}")
+        self._write_log(payload)
 
     def log_error(self, error_class: str, details: str):
         payload = {
@@ -54,3 +61,14 @@ class ExperimentLogger:
             "details": details
         }
         print(f"ERROR: {json.dumps(payload)}", file=sys.stderr)
+        self._write_log(payload)
+        self.set_state("FAILED")
+
+    def set_state(self, new_state: str):
+        if new_state in self.STATES:
+            self.state = new_state
+            self._write_log({"event": "state_change", "state": new_state})
+    
+    def _write_log(self, data: dict):
+        with open(self.log_file, "a") as f:
+            f.write(json.dumps(data) + "\n")

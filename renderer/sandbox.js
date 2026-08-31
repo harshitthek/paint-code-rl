@@ -11,7 +11,9 @@ async function initBrowser() {
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--enable-webgl',
-        '--allow-file-access-from-files'
+        '--allow-file-access-from-files',
+        '--use-gl=angle',
+        '--use-angle=swiftshader-webgl'
     ];
     if (process.platform === 'linux') {
         args.push('--use-gl=egl');
@@ -23,10 +25,17 @@ async function initBrowser() {
     return browser;
 }
 
-async function renderCode(code, seed, runId) {
+async function renderCode(code, seed, runId, options = {}) {
+    const timeouts = {
+        browser_startup: options.browser_startup_timeout_ms || 10000,
+        page_load: options.page_load_timeout_ms || 5000,
+        code_execution: options.code_execution_timeout_ms || 4000,
+        screenshot: options.screenshot_timeout_ms || 3000
+    };
+
     const b = await initBrowser();
     const page = await b.newPage();
-    page.setDefaultTimeout(5000);
+    page.setDefaultTimeout(timeouts.page_load);
     
     await page.setRequestInterception(true);
     page.on('request', request => {
@@ -40,10 +49,20 @@ async function renderCode(code, seed, runId) {
 
     let error_classification = 'SUCCESS';
     let runtime_error = null;
+    let console_logs = [];
+
+    page.on('console', msg => {
+        console_logs.push(`[${msg.type()}] ${msg.text()}`);
+    });
 
     page.on('pageerror', err => {
-        runtime_error = err.toString();
-        if (runtime_error.includes('SyntaxError')) {
+        const errStr = err.toString();
+        if (runtime_error) {
+            runtime_error += "\n" + errStr;
+        } else {
+            runtime_error = errStr;
+        }
+        if (errStr.includes('SyntaxError')) {
             error_classification = 'PARSE_ERROR';
         } else {
             error_classification = 'RUNTIME_ERROR';
@@ -61,27 +80,33 @@ async function renderCode(code, seed, runId) {
         
         // Automated Lifecycle & WebGL Guard Hook
         const autoSignalWrapper = `
+// Intercept createCanvas to setup brush automatically
+(function() {
+    if (typeof window.p5 !== 'undefined') {
+        const _origCreateCanvas2 = window.p5.prototype.createCanvas;
+        window.p5.prototype.createCanvas = function(...args) {
+            const result = _origCreateCanvas2.apply(this, args);
+            if (typeof brush !== 'undefined') {
+                if (typeof brush.load === 'function') {
+                    try { brush.load(); } catch(e) {}
+                }
+                if (typeof brush.scaleBrushes === 'function') {
+                    try { brush.scaleBrushes(3); } catch(e) {}
+                }
+            }
+            return result;
+        };
+    }
+})();
+
 ${safeCode}
 
-// Automated Lifecycle Hook
-(function() {
-    const origSetup = typeof window.setup === 'function' ? window.setup : null;
-    window.setup = function() {
-        // Ensure p5.brush is loaded
-        if (typeof brush !== 'undefined' && typeof brush.load === 'function') {
-            try { brush.load(); } catch(e) {}
-        }
-        if (origSetup) {
-            origSetup();
-        }
-        setTimeout(function() {
-            window.renderComplete = true;
-        }, 300);
-    };
-    setTimeout(function() {
+// Fallback timeout to complete rendering
+setTimeout(function() {
+    if (!window.renderComplete) {
         window.renderComplete = true;
-    }, 2000);
-})();
+    }
+}, ${timeouts.code_execution});
 `;
         
         htmlContent = htmlContent.replace('// INJECT_CODE_HERE', autoSignalWrapper);
@@ -93,12 +118,12 @@ ${safeCode}
         await page.goto(fileUrl, { waitUntil: 'load' });
         
         try {
-            await page.waitForFunction('window.renderComplete === true', { timeout: 4000 });
+            await page.waitForFunction('window.renderComplete === true', { timeout: timeouts.code_execution + 500 });
         } catch(e) {
             if (error_classification === 'SUCCESS') {
                 error_classification = 'TIMEOUT';
             }
-            throw new Error('TIMEOUT');
+            // we don't throw here so we can still try to grab screenshot
         }
         
         const outDir = path.resolve(__dirname, '../artifacts/renders');
@@ -109,12 +134,14 @@ ${safeCode}
         // Ensure canvas exists and is visible
         const canvas = await page.$('canvas');
         if (!canvas) {
-            error_classification = 'NO_CANVAS';
+            if (error_classification === 'SUCCESS') {
+                error_classification = 'NO_CANVAS';
+            }
             throw new Error("NO_CANVAS");
         }
         
         try {
-            await canvas.screenshot({ path: outPath });
+            await canvas.screenshot({ path: outPath, timeout: timeouts.screenshot });
         } catch(e) {
             if (e.message.includes('Node is either not visible')) {
                 error_classification = 'NO_CANVAS';
@@ -131,7 +158,8 @@ ${safeCode}
             success: error_classification === 'SUCCESS',
             image_path: outPath,
             error_classification: error_classification,
-            runtime_error: runtime_error
+            runtime_error: runtime_error,
+            console_logs: console_logs
         };
 
     } catch (e) {
@@ -144,7 +172,8 @@ ${safeCode}
             success: false,
             image_path: null,
             error_classification: error_classification,
-            runtime_error: e.toString() + (runtime_error ? " | " + runtime_error : "")
+            runtime_error: e.toString() + (runtime_error ? " | " + runtime_error : ""),
+            console_logs: typeof console_logs !== 'undefined' ? console_logs : []
         };
     }
 }
