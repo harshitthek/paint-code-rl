@@ -4,7 +4,7 @@
     "name": "paint-code-rl",
     "url": "https://github.com/harshitthek/paint-code-rl",
     "branch": "main",
-    "git_commit": "33bf78e8fda7ac900cc42c079be37ababba5e309",
+    "git_commit": "483a5cb73ebde2926311e3ef911cbb13e8cadb53",
     "tag": "v0.1.0-phase0",
     "phase": "Phase-0 (Hardware Validation Release)"
   },
