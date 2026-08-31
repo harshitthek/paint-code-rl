@@ -1,8 +1,10 @@
 torch==2.5.1
 transformers==4.49.0
 trl==0.15.1
-requests==2.32.3
-pytest==8.4.2
-peft==0.14.0
-hpsv3==0.1.0 # Requires manual github install in some environments, keeping exact version for freeze
-tenacity==9.0.0
+requests>=2.31.0
+pytest>=8.0.0
+peft>=0.14.0
+tenacity>=8.2.0
+pyyaml>=6.0
+psutil>=5.9.0
+accelerate>=0.28.0
