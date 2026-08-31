@@ -4,6 +4,10 @@
   "description": "Puppeteer renderer for p5.brush generated code",
   "main": "server.js",
   "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test_security.js"
+  },
   "dependencies": {
     "express": "^4.22.2",
     "pixelmatch": "^7.2.0",

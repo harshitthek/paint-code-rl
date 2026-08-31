@@ -1,24 +1,17 @@
 # scripts/test_reward_integration.py
-import sys
 import os
+import sys
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 from paint_rl.rewards.api import get_rewards
 
-def run():
-    print("Running Reward Integration Test (Gates C1, C2, D1)...")
-    try:
-        res = get_rewards(
-            prompt="draw a red circle", 
-            code="function setup() { createCanvas(400,400,WEBGL); background(255); window.signalRenderComplete(); }", 
-            reference_path="mock_ref.png", 
-            seed=42
-        )
-        print("Reward bundle returned:")
-        import pprint
-        pprint.pprint(res)
-    except Exception as e:
-        print(f"Integration failed: {e}")
+def test_full_pipeline():
+    prompt = "Watercolor mountains"
+    code = "function setup() { createCanvas(100, 100); background(255); }"
+    ref = "nonexistent.png"
+    
+    res = get_rewards(prompt, code, ref, seed=42)
+    print("Test Reward Output:", res)
 
-if __name__ == '__main__':
-    run()
+if __name__ == "__main__":
+    test_full_pipeline()

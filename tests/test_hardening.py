@@ -1,4 +1,4 @@
-import sys; import os; sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+import sys; import os; sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 import pytest
 import os
 import json
@@ -6,7 +6,7 @@ import hashlib
 from paint_rl.storage.cache import CacheManager
 from paint_rl.config.core import load_config
 from paint_rl.trainer.train_grpo import save_experiment_state, resume_experiment_state
-import config
+from paint_rl.config import core as config
 
 def test_cache():
     if os.path.exists("artifacts/test_cache.db"): os.remove("artifacts/test_cache.db")
@@ -51,4 +51,3 @@ def test_checkpointing():
     config.CONFIG_HASH = "different_hash"
     with pytest.raises(ValueError, match="CRITICAL: Attempting to resume with mismatched config hash"):
         resume_experiment_state()
-

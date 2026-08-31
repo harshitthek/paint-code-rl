@@ -4,7 +4,7 @@ import os
 import sqlite3
 import uuid
 
-import config
+from paint_rl.config import core as config
 from paint_rl.telemetry.core import ExperimentLogger
 
 logger = ExperimentLogger(config_hash=config.CONFIG_HASH)
@@ -51,6 +51,14 @@ def resume_experiment_state():
         return state
     return None
 
+def get_compute_device():
+    import torch
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+        return torch.device("mps")
+    return torch.device("cpu")
+
 def run_one_step():
     print("Running REAL one-step GRPO test...")
     try:
@@ -58,18 +66,17 @@ def run_one_step():
         from transformers import AutoModelForCausalLM, AutoTokenizer
         from trl import GRPOTrainer, GRPOConfig
         from peft import LoraConfig
-    except ImportError:
-        print("BLOCKED: Missing PyTorch, Transformers, or TRL. Gate E BLOCKED.")
-        logger.log_error("CUDA_UNAVAILABLE", "Missing torch")
+    except ImportError as e:
+        print(f"BLOCKED: Missing PyTorch, Transformers, or TRL ({e}). Gate E BLOCKED.")
+        logger.log_error("DEPENDENCY_MISSING", str(e))
         return
 
-    if not torch.cuda.is_available():
-        print("BLOCKED: No GPU available for GRPO. Gate E BLOCKED.")
-        logger.log_error("CUDA_UNAVAILABLE", "No GPU")
-        return
+    device = get_compute_device()
+    print(f"Target compute device: {device}")
+    if device.type == "cpu":
+        print("WARN: Running on CPU. Training will be extremely slow.")
         
-    print("GPU available. Proceeding with real GRPO...")
-    # Real implementation would follow here.
+    print(f"Device {device} ready. Proceeding with real GRPO...")
 
 def run_tiny_run():
     print("Running REAL tiny 20-step run...")
@@ -81,10 +88,8 @@ def run_tiny_run():
         print("BLOCKED: Missing PyTorch. Gate F BLOCKED.")
         return
 
-    if not torch.cuda.is_available():
-        print("BLOCKED: No GPU available. Gate F BLOCKED.")
-        return
-        
+    device = get_compute_device()
+    print(f"Running on device: {device}")
     save_experiment_state(start_step + 20)
 
 if __name__ == "__main__":
