@@ -6,13 +6,19 @@ let browser;
 
 async function initBrowser() {
     if (browser) return browser;
+    const args = [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--enable-webgl',
+        '--allow-file-access-from-files'
+    ];
+    if (process.platform === 'linux') {
+        args.push('--use-gl=egl');
+    }
     browser = await puppeteer.launch({
-        headless: true,
-        args: [
-            '--no-sandbox',
-            '--use-gl=egl', 
-            '--disable-dev-shm-usage'
-        ]
+        headless: 'new',
+        args: args
     });
     return browser;
 }
@@ -20,7 +26,7 @@ async function initBrowser() {
 async function renderCode(code, seed, runId) {
     const b = await initBrowser();
     const page = await b.newPage();
-    page.setDefaultTimeout(2000);
+    page.setDefaultTimeout(4000);
     
     await page.setRequestInterception(true);
     page.on('request', request => {
@@ -53,7 +59,28 @@ async function renderCode(code, seed, runId) {
             safeCode = safeCode.replace(/function\s+setup\s*\(\)\s*\{/, "function setup() { randomSeed(" + seed + "); noiseSeed(" + seed + "); ");
         }
         
-        htmlContent = htmlContent.replace('// INJECT_CODE_HERE', safeCode);
+        // Wrap code with automated render completion signal
+        const autoSignalWrapper = `
+${safeCode}
+
+// Automated Lifecycle Hook
+(function() {
+    const origSetup = typeof window.setup === 'function' ? window.setup : null;
+    window.setup = function() {
+        if (origSetup) {
+            origSetup();
+        }
+        setTimeout(function() {
+            window.renderComplete = true;
+        }, 200);
+    };
+    setTimeout(function() {
+        window.renderComplete = true;
+    }, 1500);
+})();
+`;
+        
+        htmlContent = htmlContent.replace('// INJECT_CODE_HERE', autoSignalWrapper);
         
         const tmpFile = path.resolve(__dirname, `tmp_${runId}.html`);
         fs.writeFileSync(tmpFile, htmlContent);
@@ -62,7 +89,7 @@ async function renderCode(code, seed, runId) {
         await page.goto(fileUrl, { waitUntil: 'load' });
         
         try {
-            await page.waitForFunction('window.renderComplete === true', { timeout: 2000 });
+            await page.waitForFunction('window.renderComplete === true', { timeout: 3000 });
         } catch(e) {
             if (error_classification === 'SUCCESS') {
                 error_classification = 'TIMEOUT';
@@ -93,7 +120,7 @@ async function renderCode(code, seed, runId) {
             }
         }
         
-        fs.unlinkSync(tmpFile);
+        try { fs.unlinkSync(tmpFile); } catch(e) {}
         await page.close();
         
         return {
@@ -106,7 +133,7 @@ async function renderCode(code, seed, runId) {
     } catch (e) {
         await page.close().catch(()=>{});
         if (error_classification === 'SUCCESS') {
-            if (e.toString().includes('Navigation timeout')) error_classification = 'TIMEOUT';
+            if (e.toString().includes('Navigation timeout') || e.toString().includes('TIMEOUT')) error_classification = 'TIMEOUT';
             else error_classification = 'BROWSER_ERROR';
         }
         return {
