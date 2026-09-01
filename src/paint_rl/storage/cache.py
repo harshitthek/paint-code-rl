@@ -6,7 +6,8 @@ import hashlib
 class CacheManager:
     def __init__(self, db_path: str = "artifacts/cache.db"):
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
-        self.conn = sqlite3.connect(db_path, check_same_thread=False)
+        self.conn = sqlite3.connect(db_path, timeout=30.0, check_same_thread=False)
+        self.conn.execute("PRAGMA journal_mode=WAL;")
         self._init_db()
         
     def _init_db(self):

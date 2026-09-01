@@ -8,6 +8,7 @@ const MAX_INFLIGHT = 10;
 let inflight = 0;
 let jobsProcessed = 0;
 const RESTART_AFTER = 100;
+let recyclePromise = null;
 
 app.get('/health', (req, res) => {
     res.json({ status: 'ok', inflight, jobsProcessed });
@@ -18,14 +19,13 @@ app.post('/render', async (req, res) => {
         return res.status(429).json({ success: false, error_classification: "RENDERER_OVERLOAD", runtime_error: "Too many concurrent requests" });
     }
     
+    // Await ongoing recycling if any
+    if (recyclePromise) {
+        await recyclePromise;
+    }
+
     inflight++;
     jobsProcessed++;
-    
-    if (jobsProcessed > RESTART_AFTER) {
-        console.log("Recycling browser after 100 jobs...");
-        await closeBrowser();
-        jobsProcessed = 0;
-    }
 
     try {
         const { prompt, code, seed } = req.body;
@@ -43,6 +43,21 @@ app.post('/render', async (req, res) => {
         res.json(result);
     } finally {
         inflight--;
+        // Safely recycle browser only when no other requests are in flight
+        if (jobsProcessed >= RESTART_AFTER && inflight === 0 && !recyclePromise) {
+            console.log("Recycling browser safely (inflight === 0)...");
+            recyclePromise = (async () => {
+                try {
+                    await closeBrowser();
+                    jobsProcessed = 0;
+                } catch (e) {
+                    console.error("Error recycling browser:", e);
+                } finally {
+                    recyclePromise = null;
+                }
+            })();
+            await recyclePromise;
+        }
     }
 });
 

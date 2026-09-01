@@ -1,2 +1,13 @@
+# LOCAL mode configuration
+# Zero-cost, external APIs blocked, device-adaptive model selection
+
 safety:
   allow_external_apis: false
+
+training:
+  batch_size: 4       # Conservative default; MPS overlay downsizes further
+  group_size: 2
+
+judge:
+  provider: "local"
+  model: "Qwen/Qwen2-VL-2B-Instruct"

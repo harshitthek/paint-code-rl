@@ -34,6 +34,15 @@ class CapabilityEvaluator:
         return mem
 
 class ModelRegistry:
+    """Model selection based on hardware capabilities and execution mode.
+    
+    Selects policy model, judge model, and device placement based on
+    detected hardware, execution mode, and memory constraints.
+    """
+
+    # Actual local VLM judge model — lightweight, fits on 16GB Mac and T4
+    LOCAL_JUDGE_MODEL = "Qwen/Qwen2-VL-2B-Instruct"
+
     @classmethod
     def select_models(cls, mode: str, caps: dict, allow_paid_api: bool = False):
         cuda_avail = caps.get("cuda_available", False)
@@ -46,32 +55,31 @@ class ModelRegistry:
         
         # In Free/Local, Paid API is strictly forbidden unless explicitly overridden
         if mode in ("FREE", "LOCAL") and not allow_paid_api:
-            judge_model = "Qwen/Qwen2.5-VL-7B" # Must use local VLM
+            judge_model = cls.LOCAL_JUDGE_MODEL
             judge_device = "mps" if mps_avail else "cuda:1" if gpu_count > 1 else "cpu"
         else:
             judge_model = "openai"
             judge_device = "cpu"
 
         if mps_avail and mode == "LOCAL":
-            # Real memory math (Example for 7B policy)
-            policy_7b_mem = CapabilityEvaluator.estimate_memory_gb(7.0, "bfloat16", has_optimizer=True, has_kv=True)
-            vlm_7b_mem = CapabilityEvaluator.estimate_memory_gb(7.0, "bfloat16", has_optimizer=False, has_kv=True)
-            os_overhead = 4.0
+            # Memory budget: unified RAM minus ~4GB for macOS
+            usable_ram = max(0, ram_gb - 4.0)
             
-            total_req = policy_7b_mem + os_overhead
-            if judge_model != "openai":
-                total_req += vlm_7b_mem # Assumes simultaneous residency. Sequential requires custom TRL hooks.
-                
-            if ram_gb >= total_req:
+            # 1.5B policy (FP32 training): ~6.8GB
+            # 2B VLM judge (FP16 sequential): ~4.5GB (loaded/unloaded between phases)
+            policy_1_5b_train_mem = 6.8
+            
+            if usable_ram >= policy_1_5b_train_mem:
                 return {
-                    "policy_model": "Qwen/Qwen2.5-Coder-7B-Instruct",
+                    "policy_model": "Qwen/Qwen2.5-Coder-1.5B-Instruct",
                     "policy_device": "mps",
                     "judge_model": judge_model,
                     "judge_device": "mps" if judge_model != "openai" else "cpu"
                 }
             else:
+                # Extremely constrained: fall back to 0.5B
                 return {
-                    "policy_model": "Qwen/Qwen2.5-Coder-1.5B-Instruct",
+                    "policy_model": "Qwen/Qwen2.5-Coder-0.5B-Instruct",
                     "policy_device": "mps",
                     "judge_model": judge_model,
                     "judge_device": "mps" if judge_model != "openai" else "cpu"
@@ -84,7 +92,7 @@ class ModelRegistry:
                     "policy_model": "Qwen/Qwen2.5-Coder-7B-Instruct",
                     "policy_quant": "int4",
                     "policy_device": "cuda:0",
-                    "judge_model": "Qwen/Qwen2.5-VL-7B",
+                    "judge_model": cls.LOCAL_JUDGE_MODEL,
                     "judge_quant": "int4",
                     "judge_device": "cuda:1"
                 }
@@ -109,7 +117,7 @@ class ModelRegistry:
 
         # CPU Fallback
         return {
-            "policy_model": "Qwen/Qwen2.5-Coder-1.5B-Instruct",
+            "policy_model": "Qwen/Qwen2.5-Coder-0.5B-Instruct",
             "policy_device": "cpu",
             "judge_model": judge_model,
             "judge_device": "cpu"
