@@ -6,6 +6,19 @@ trailing unclosed string literals, and missing function closure braces.
 import re
 
 
+def _count_structural_braces(code: str) -> tuple[int, int]:
+    """Count structural curly braces outside comments and string literals."""
+    # Remove single-line comments
+    cleaned = re.sub(r'//.*$', '', code, flags=re.MULTILINE)
+    # Remove multi-line comments
+    cleaned = re.sub(r'/\*[\s\S]*?\*/', '', cleaned)
+    # Remove strings: double-quoted, single-quoted, and template literals
+    cleaned = re.sub(r'"(?:\\.|[^"\\])*"', '""', cleaned)
+    cleaned = re.sub(r"'(?:\\.|[^'\\])*'", "''", cleaned)
+    cleaned = re.sub(r'`(?:\\.|[^`\\])*`', '``', cleaned)
+    return cleaned.count("{"), cleaned.count("}")
+
+
 def _sanitize_trailing_truncation(code: str) -> str:
     """Sanitize code that was truncated mid-token or mid-statement by token limits."""
     if not code:
@@ -27,9 +40,8 @@ def _sanitize_trailing_truncation(code: str) -> str:
             lines.pop()
             code = "\n".join(lines).strip()
     
-    # Balance unclosed curly braces
-    open_braces = code.count("{")
-    close_braces = code.count("}")
+    # Balance unclosed structural curly braces
+    open_braces, close_braces = _count_structural_braces(code)
     if open_braces > close_braces:
         code += "\n" + ("}\n" * (open_braces - close_braces))
         

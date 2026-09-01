@@ -1,62 +1,57 @@
-"""Renderer service manager: lifecycle, health checks, connection pooling, and process isolation.
-"""
+"""Renderer service manager: auto-start, health-check, lifecycle management."""
 import os
-import sys
-import time
-import signal
-import atexit
 import subprocess
+import time
 import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util import Retry
+import atexit
+import signal
 
 
 class RendererService:
-    """Manages the Node.js WebGL renderer daemon process and client communication."""
-
-    def __init__(self, host: str = "127.0.0.1", port: int = 3000, timeout: int = 15, auto_spawn: bool = True):
-        self.host = host
+    """Manages the Node.js/Puppeteer WebGL rendering service subprocess."""
+    
+    def __init__(self, port: int = 3000, timeout: int = 25):
         self.port = port
         self.timeout = timeout
-        self.auto_spawn = auto_spawn
-        self.base_url = f"http://{host}:{port}"
+        self.base_url = f"http://127.0.0.1:{self.port}"
         self._proc = None
-        
-        # Persistent connection pool for high-throughput RL rollouts
         self._session = requests.Session()
-        retries = Retry(
-            total=2,
-            backoff_factor=0.2,
-            status_forcelist=[502, 503, 504],
-        )
-        adapter = HTTPAdapter(pool_connections=10, pool_maxsize=20, max_retries=retries)
+        adapter = requests.adapters.HTTPAdapter(pool_connections=10, pool_maxsize=20, max_retries=2)
         self._session.mount("http://", adapter)
         self._session.mount("https://", adapter)
 
     def is_healthy(self) -> bool:
-        """Check if the renderer server is responding to health checks."""
-        for url in [self.base_url, f"http://localhost:{self.port}"]:
-            try:
-                r = self._session.get(f"{url}/health", timeout=1.5)
-                if r.status_code == 200 and r.json().get("status") == "ok":
-                    self.base_url = url
-                    return True
-            except Exception:
-                pass
-        return False
-
-    def ensure_started(self, max_wait_sec: int = 15) -> bool:
-        """Ensure the Node.js WebGL renderer daemon is running and responsive."""
-        if self.is_healthy():
-            return True
-            
-        if not self.auto_spawn:
+        """Check if the renderer service is up and responding."""
+        try:
+            resp = self._session.get(f"{self.base_url}/health", timeout=1.5)
+            if resp.status_code == 200:
+                data = resp.json()
+                return data.get("status") == "ok"
+            return False
+        except Exception:
             return False
 
-        # Locate renderer directory by finding repo root
-        curr = os.path.dirname(os.path.abspath(__file__))
+    def ensure_started(self, max_wait_sec: int = 15) -> bool:
+        """Ensure the Node.js renderer service is running and healthy."""
+        if self.is_healthy():
+            return True
+
+        if self._proc is not None:
+            if self._proc.poll() is None:
+                # Running but not healthy yet, wait a bit
+                start_t = time.time()
+                while time.time() - start_t < 3:
+                    if self.is_healthy():
+                        return True
+                    time.sleep(0.3)
+                self.shutdown()
+            else:
+                self._proc = None
+
+        # Discover renderer dir relative to project root
         repo_root = None
-        for _ in range(6):
+        curr = os.path.abspath(os.path.dirname(__file__))
+        for _ in range(5):
             if os.path.exists(os.path.join(curr, "pyproject.toml")):
                 repo_root = curr
                 break
@@ -90,7 +85,7 @@ class RendererService:
                 cwd=renderer_dir,
                 env=env,
                 stdout=subprocess.DEVNULL,
-                stderr=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
                 text=True,
                 **kwargs
             )
@@ -103,10 +98,8 @@ class RendererService:
         start_t = time.time()
         while time.time() - start_t < max_wait_sec:
             if self._proc.poll() is not None:
-                _, stderr = self._proc.communicate()
                 print(f"[ERROR] Node.js renderer process exited with code {self._proc.returncode}!")
-                if stderr:
-                    print(f"Stderr: {stderr}")
+                self._proc = None
                 return False
                 
             if self.is_healthy():
@@ -150,8 +143,11 @@ class RendererService:
     def shutdown(self):
         """Cleanly terminate the renderer process and all child Chrome instances."""
         if self._proc is not None:
+            if self._proc.poll() is not None:
+                self._proc = None
+                return
             try:
-                if hasattr(os, "killpg") and hasattr(os, "getpgid"):
+                if hasattr(os, "killpg") and hasattr(os, "getpgid") and self._proc.poll() is None:
                     try:
                         os.killpg(os.getpgid(self._proc.pid), signal.SIGTERM)
                     except ProcessLookupError:
@@ -160,11 +156,12 @@ class RendererService:
                     self._proc.terminate()
                 self._proc.wait(timeout=2)
             except Exception:
-                if hasattr(os, "killpg") and hasattr(os, "getpgid"):
-                    try:
-                        os.killpg(os.getpgid(self._proc.pid), signal.SIGKILL)
-                    except ProcessLookupError:
-                        pass
-                else:
-                    self._proc.kill()
+                if self._proc is not None and self._proc.poll() is None:
+                    if hasattr(os, "killpg") and hasattr(os, "getpgid"):
+                        try:
+                            os.killpg(os.getpgid(self._proc.pid), signal.SIGKILL)
+                        except ProcessLookupError:
+                            pass
+                    else:
+                        self._proc.kill()
             self._proc = None

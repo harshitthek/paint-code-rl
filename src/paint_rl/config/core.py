@@ -126,7 +126,7 @@ def detect_compute_device() -> dict:
             # Use float32 for MPS training stability (FP16 causes grad instabilities
             # in GRPO backward pass on MPS)
             device_info["precision"] = "float32"
-            device_info["mps_fallback"] = True
+            device_info["mps_fallback"] = (os.environ.get("PYTORCH_ENABLE_MPS_FALLBACK", "0") == "1")
     except ImportError:
         pass
     return device_info

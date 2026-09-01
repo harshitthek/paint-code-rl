@@ -93,23 +93,21 @@ def run():
 
     print("Loading language model for p5.js synthesis...")
     from transformers import AutoModelForCausalLM, AutoTokenizer
+    from paint_rl.models.registry import ModelRegistry
 
-    if device.type == "mps":
-        model_name = "Qwen/Qwen2.5-Coder-1.5B-Instruct"
-    elif device.type == "cuda":
-        model_name = "Qwen/Qwen2.5-Coder-7B-Instruct"
-    else:
-        model_name = "Qwen/Qwen2.5-Coder-0.5B-Instruct"
+    selection = ModelRegistry.select_models(device=device.type)
+    model_name = selection.policy_model
+    policy_device = torch.device(selection.policy_device)
 
-    print(f"Loading {model_name} onto {device}...")
+    print(f"Loading {model_name} onto {policy_device}...")
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
-        torch_dtype=torch.float32 if device.type in ["mps", "cpu"] else torch.float16
-    ).to(device)
+        torch_dtype=torch.float32 if policy_device.type in ["mps", "cpu"] else torch.float16
+    ).to(policy_device)
 
     prompts = [
         "Create a generative watercolor painting of a serene mountain landscape using p5.js and p5.brush.",

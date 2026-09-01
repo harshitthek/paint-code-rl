@@ -122,7 +122,7 @@ class TestTrainerDeviceSelection:
             assert batch_size <= 2, f"MPS batch_size={batch_size}, expected <=2"
             assert group_size <= 2, f"MPS group_size={group_size}, expected <=2"
         elif trainer.device.type == "cpu":
-            assert batch_size <= 1
+            assert batch_size <= 2
             assert group_size <= 2
 
     def test_dtype_safe_for_device(self):

@@ -19,7 +19,7 @@ import time
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 
 # Set MPS fallback before any torch imports
-os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
+os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "0")
 
 REPORT = {}
 
@@ -189,7 +189,10 @@ def test_config_resolution():
         else:
             results["mps_batch_size_safe"] = f"FAIL: batch_size={config_mps.training.batch_size}, expected <=4"
         
-        results["status"] = "PASS"
+        if results.get("mps_model_override") == "PASS" and results.get("mps_batch_size_safe") == "PASS":
+            results["status"] = "PASS"
+        else:
+            results["status"] = "FAIL"
     except Exception as e:
         results["status"] = f"FAIL: {e}"
     

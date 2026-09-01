@@ -386,7 +386,8 @@ class PaintGRPOTrainer:
         except ImportError:
             pass
         except Exception as e:
-            print(f"[PaintGRPOTrainer] ⚠️ Checkpoint validation warning: {e}")
+            print(f"[PaintGRPOTrainer] ❌ Checkpoint validation failed: {e}")
+            raise
         
         self._clear_memory()
         return train_result

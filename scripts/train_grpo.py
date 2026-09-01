@@ -89,7 +89,7 @@ def main():
     if args.mode == 'one_step':
         print("Running 1-step hardware validation...")
         result = trainer.one_step_test()
-        print(f"\n✅ 1-step GRPO validation COMPLETE")
+        print("\n✅ 1-step GRPO validation COMPLETE")
         print(f"   Training loss: {result.training_loss:.4f}")
     else:
         print(f"Starting training (max_steps={args.max_steps})...")
@@ -97,7 +97,7 @@ def main():
             max_steps=args.max_steps, 
             checkpoint_dir=args.checkpoint_dir
         )
-        print(f"\n✅ Training COMPLETE")
+        print("\n✅ Training COMPLETE")
 
 
 if __name__ == '__main__':
