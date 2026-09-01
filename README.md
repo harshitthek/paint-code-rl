@@ -138,28 +138,28 @@ When `--dashboard` is enabled during training, open `artifacts/dashboard.html` i
 ## 📚 Complete Documentation Index
 
 ### Architecture & System Design
-- [System Architecture Specification](file:///docs/architecture/SYSTEM_ARCHITECTURE.md) — Comprehensive end-to-end subsystem specifications and dataflows.
-- [Adversarial Red-Team & Architecture Synthesis](file:///docs/research/ARCHITECTURAL_REDTEAM_AND_SYNTHESIS.md) — Analysis of 5 naive anti-patterns and battle-tested solutions.
-- [Test Status & Verification Report](file:///TEST_STATUS.md) — 96-test verification breakdown.
-- [Final Implementation Status](file:///FINAL_IMPLEMENTATION_STATUS.md) — Component status and verification matrix.
+- [System Architecture Specification](docs/architecture/SYSTEM_ARCHITECTURE.md) — Comprehensive end-to-end subsystem specifications and dataflows.
+- [Adversarial Red-Team & Architecture Synthesis](docs/research/ARCHITECTURAL_REDTEAM_AND_SYNTHESIS.md) — Analysis of 5 naive anti-patterns and battle-tested solutions.
+- [Test Status & Verification Report](TEST_STATUS.md) — 96-test verification breakdown.
+- [Final Implementation Status](FINAL_IMPLEMENTATION_STATUS.md) — Component status and verification matrix.
 
 ### Architecture Decision Records (ADRs)
-- [ADR-001: Headless Chromium WebGL Architecture](file:///docs/decisions/ADR-001-puppeteer-webgl.md)
-- [ADR-002: Managing Stochasticity and GPU Seeding](file:///docs/decisions/ADR-002-stochasticity.md)
-- [ADR-003: Standalone Lightweight Implementation (De-vendor SOUP)](file:///docs/decisions/ADR-003-soup-dependency.md)
-- [ADR-004: Execution Modes and Cost Safety Guarantees](file:///docs/decisions/ADR-004-execution-modes.md)
-- [ADR-005: Pinned TRL & HuggingFace Dependencies](file:///docs/decisions/ADR-005-trl-pin.md)
-- [ADR-006: Deferred In-Memory Browser Page Pooling](file:///docs/decisions/ADR-006-deferred-refresh.md)
-- [ADR-007: Deferred Multi-Node Distributed Training](file:///docs/decisions/ADR-007-deferred-distributed.md)
-- [ADR-008: Multi-Signal Visual RL and Ephemeral Sandboxing](file:///docs/decisions/ADR-008-multimodal-visual-rl-and-sandboxing.md)
-- [ADR-009: Interactive Cyclic Training, Scorecards & Hardware Saturation](file:///docs/decisions/ADR-009-interactive-cyclic-training-and-hardware-saturation.md)
+- [ADR-001: Headless Chromium WebGL Architecture](docs/decisions/ADR-001-puppeteer-webgl.md)
+- [ADR-002: Managing Stochasticity and GPU Seeding](docs/decisions/ADR-002-stochasticity.md)
+- [ADR-003: Standalone Lightweight Implementation (De-vendor SOUP)](docs/decisions/ADR-003-soup-dependency.md)
+- [ADR-004: Execution Modes and Cost Safety Guarantees](docs/decisions/ADR-004-execution-modes.md)
+- [ADR-005: Pinned TRL & HuggingFace Dependencies](docs/decisions/ADR-005-trl-pin.md)
+- [ADR-006: Deferred In-Memory Browser Page Pooling](docs/decisions/ADR-006-deferred-refresh.md)
+- [ADR-007: Deferred Multi-Node Distributed Training](docs/decisions/ADR-007-deferred-distributed.md)
+- [ADR-008: Multi-Signal Visual RL and Ephemeral Sandboxing](docs/decisions/ADR-008-multimodal-visual-rl-and-sandboxing.md)
+- [ADR-009: Interactive Cyclic Training, Scorecards & Hardware Saturation](docs/decisions/ADR-009-interactive-cyclic-training-and-hardware-saturation.md)
 
 ### User & Deployment Guides
-- [User Guide: Interactive Cyclic Training & Scorecards](file:///docs/user_guide/INTERACTIVE_CYCLIC_TRAINING.md) — Step-by-step training and scorecard guide.
-- [Apple Silicon M4 Deployment Guide](file:///docs/deployment/M4_MPS.md) — Native Metal ANGLE acceleration and MPS memory management.
-- [Kaggle 2x T4 GPU Deployment Guide](file:///docs/deployment/KAGGLE.md) — Zero-cost cloud driver setup and Jupyter notebook workflow.
-- [Local CPU Development Guide](file:///docs/deployment/CPU.md) — Fast unit testing and functional validation.
-- [Cloud GPU Deployment Guide](file:///docs/deployment/PAID_CLOUD.md) — Docker and high-throughput A100 setups.
+- [User Guide: Interactive Cyclic Training & Scorecards](docs/user_guide/INTERACTIVE_CYCLIC_TRAINING.md) — Step-by-step training and scorecard guide.
+- [Apple Silicon M4 Deployment Guide](docs/deployment/M4_MPS.md) — Native Metal ANGLE acceleration and MPS memory management.
+- [Kaggle 2x T4 GPU Deployment Guide](docs/deployment/KAGGLE.md) — Zero-cost cloud driver setup and Jupyter notebook workflow.
+- [Local CPU Development Guide](docs/deployment/CPU.md) — Fast unit testing and functional validation.
+- [Cloud GPU Deployment Guide](docs/deployment/PAID_CLOUD.md) — Docker and high-throughput A100 setups.
 
 ---
 

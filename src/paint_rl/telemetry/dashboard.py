@@ -42,6 +42,10 @@ class DashboardWriter:
         temps = [m.get("temperature", 0.7) for m in self._history]
         steps = [m.get("steps_done", 0) for m in self._history]
         
+        labels_json = json.dumps([f"Cycle {c} (Step {s})" for c, s in zip(cycles, steps)]).replace('<', '\\u003c').replace('>', '\\u003e').replace('&', '\\u0026')
+        losses_json = json.dumps(losses).replace('<', '\\u003c').replace('>', '\\u003e').replace('&', '\\u0026')
+        temps_json = json.dumps(temps).replace('<', '\\u003c').replace('>', '\\u003e').replace('&', '\\u0026')
+        
         gallery_items = []
         for s in self._samples:
             img_tag = ""
@@ -294,11 +298,11 @@ class DashboardWriter:
         const chart = new Chart(ctx, {{
             type: 'line',
             data: {{
-                labels: {json.dumps([f"Cycle {c} (Step {s})" for c, s in zip(cycles, steps)])},
+                labels: {labels_json},
                 datasets: [
                     {{
                         label: 'Training Loss',
-                        data: {json.dumps(losses)},
+                        data: {losses_json},
                         borderColor: '#58a6ff',
                         backgroundColor: 'rgba(88, 166, 255, 0.1)',
                         tension: 0.2,
@@ -306,7 +310,7 @@ class DashboardWriter:
                     }},
                     {{
                         label: 'Temperature',
-                        data: {json.dumps(temps)},
+                        data: {temps_json},
                         borderColor: '#f78166',
                         borderDash: [5, 5],
                         tension: 0.2,

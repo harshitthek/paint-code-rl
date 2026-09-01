@@ -149,7 +149,7 @@ sequenceDiagram
 ---
 
 ## 5. Architectural Documents & ADR Links
-- [ADR-001: Headless Chromium WebGL Architecture](file:///C:/Users/user/.gemini/antigravity/brain/eabfab2e-f626-4128-9da1-6868c5d0f842/paint-code-rl/docs/decisions/ADR-001-puppeteer-webgl.md)
-- [ADR-008: Multi-Signal Visual RL & Sandboxing](file:///C:/Users/user/.gemini/antigravity/brain/eabfab2e-f626-4128-9da1-6868c5d0f842/paint-code-rl/docs/decisions/ADR-008-multimodal-visual-rl-and-sandboxing.md)
-- [ADR-009: Interactive Cyclic Training & Hardware Saturation](file:///C:/Users/user/.gemini/antigravity/brain/eabfab2e-f626-4128-9da1-6868c5d0f842/paint-code-rl/docs/decisions/ADR-009-interactive-cyclic-training-and-hardware-saturation.md)
-- [Architectural Red-Team Analysis & Synthesis](file:///C:/Users/user/.gemini/antigravity/brain/eabfab2e-f626-4128-9da1-6868c5d0f842/paint-code-rl/docs/research/ARCHITECTURAL_REDTEAM_AND_SYNTHESIS.md)
+- [ADR-001: Headless Chromium WebGL Architecture](docs/decisions/ADR-001-puppeteer-webgl.md)
+- [ADR-008: Multi-Signal Visual RL & Sandboxing](docs/decisions/ADR-008-multimodal-visual-rl-and-sandboxing.md)
+- [ADR-009: Interactive Cyclic Training & Hardware Saturation](docs/decisions/ADR-009-interactive-cyclic-training-and-hardware-saturation.md)
+- [Architectural Red-Team Analysis & Synthesis](docs/research/ARCHITECTURAL_REDTEAM_AND_SYNTHESIS.md)

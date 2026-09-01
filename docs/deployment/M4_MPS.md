@@ -93,6 +93,6 @@ python scripts/train_grpo.py --mode train --steps-per-cycle 25 --max --dashboard
 ---
 
 ## 5. Related Guides & References
-- [User Guide: Interactive Cyclic Training](file:///docs/user_guide/INTERACTIVE_CYCLIC_TRAINING.md)
-- [System Architecture Specification](file:///docs/architecture/SYSTEM_ARCHITECTURE.md)
-- [ADR-009: Interactive Cyclic Training & Hardware Saturation](file:///docs/decisions/ADR-009-interactive-cyclic-training-and-hardware-saturation.md)
+- [User Guide: Interactive Cyclic Training](../../docs/user_guide/INTERACTIVE_CYCLIC_TRAINING.md)
+- [System Architecture Specification](../../docs/architecture/SYSTEM_ARCHITECTURE.md)
+- [ADR-009: Interactive Cyclic Training & Hardware Saturation](../../docs/decisions/ADR-009-interactive-cyclic-training-and-hardware-saturation.md)

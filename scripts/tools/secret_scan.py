@@ -1,12 +1,14 @@
 import os
 import re
+import sys
+from pathlib import Path
 
-root = r"C:\Users\user\.gemini\antigravity\brain\eabfab2e-f626-4128-9da1-6868c5d0f842\paint-code-rl"
+root = str(Path(__file__).resolve().parent.parent.parent)
 secret_pattern = re.compile(r'KDAT_[a-zA-Z0-9]{32}')
 
 found = False
 for r, d, files in os.walk(root):
-    if '.git' in r:
+    if '.git' in r or '.venv' in r or '__pycache__' in r:
         continue
     for f in files:
         if f.endswith('.json') or f.endswith('.yaml') or f.endswith('.py') or f.endswith('.md') or f.endswith('.ipynb'):
@@ -17,5 +19,9 @@ for r, d, files in os.walk(root):
                     print(f"SECRET FOUND IN {path}")
                     found = True
 
-if not found:
+if found:
+    print("Secret scan failed: Exposed secrets detected.")
+    sys.exit(1)
+else:
     print("No secrets found.")
+    sys.exit(0)

@@ -53,19 +53,33 @@ async function renderCode(code, seed, runId, options = {}) {
     page.setDefaultTimeout(timeouts.page_load);
     
     await page.setRequestInterception(true);
-    const rendererDir = path.resolve(__dirname).replace(/\\/g, '/');
+    const rendererDir = path.resolve(__dirname);
     page.on('request', request => {
         try {
-            const url = request.url().replace(/\\/g, '/');
-            // Allow only local renderer files, tmp HTML files, and data URLs.
-            // Explicitly block external network calls (http/https/ws) and arbitrary filesystem access.
-            if (url.startsWith('data:') || (url.startsWith('file://') && url.includes(rendererDir))) {
+            const url = request.url();
+            if (url.startsWith('data:')) {
                 request.continue();
+            } else if (url.startsWith('file://')) {
+                try {
+                    let fileUrlPath = new URL(url).pathname;
+                    if (process.platform === 'win32' && fileUrlPath.startsWith('/')) {
+                        fileUrlPath = fileUrlPath.slice(1);
+                    }
+                    const resolvedFile = path.resolve(decodeURIComponent(fileUrlPath));
+                    const rel = path.relative(rendererDir, resolvedFile);
+                    if (!rel.startsWith('..') && !path.isAbsolute(rel)) {
+                        request.continue();
+                    } else {
+                        request.abort('accessdenied');
+                    }
+                } catch (e) {
+                    request.abort('accessdenied');
+                }
             } else {
                 request.abort('accessdenied');
             }
         } catch (err) {
-            // Request may have already been aborted/handled
+            // Request may have already been handled
         }
     });
 
@@ -167,14 +181,6 @@ async function renderCode(code, seed, runId, options = {}) {
                     });
                 } catch(e) {}
             }
-            // Auto-signal completion 100ms after createCanvas completes
-            setTimeout(function() {
-                if (typeof window.signalRenderComplete === 'function') {
-                    window.signalRenderComplete();
-                } else {
-                    window.renderComplete = true;
-                }
-            }, 100);
             return result;
         };
     }

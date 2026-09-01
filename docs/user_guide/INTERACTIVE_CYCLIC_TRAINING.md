@@ -27,7 +27,7 @@ python scripts/train_grpo.py --mode one_step
 
 | Flag | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `--mode` | `str` | `one_step` | Execution mode: `one_step` (hardware check), `train` (cyclic continuous), `resume` (checkpoint resume). |
+| `--mode` | `str` | `one_step` | Execution mode: `one_step` (hardware check) or `train` (cyclic continuous). |
 | `--steps-per-cycle` | `int` | `25` | Number of training steps executed per interactive feedback cycle. |
 | `--max-steps` | `int` | `None` | Total training step budget (stops automatically when reached). |
 | `--unattended` | `flag` | `False` | Disables interactive terminal prompts; runs autonomously until `--max-steps`. |

@@ -80,6 +80,6 @@ python scripts/train_grpo.py --mode one_step
 * **Sliding Window Clean Setup:** Injected `sliding_window = None` at `AutoConfig` level to guarantee clean SDPA execution without warnings.
 
 ### References:
-- [User Guide: Interactive Cyclic Training](file:///docs/user_guide/INTERACTIVE_CYCLIC_TRAINING.md)
-- [System Architecture Specification](file:///docs/architecture/SYSTEM_ARCHITECTURE.md)
-- [ADR-009: Interactive Cyclic Training & Hardware Saturation](file:///docs/decisions/ADR-009-interactive-cyclic-training-and-hardware-saturation.md)
+- [User Guide: Interactive Cyclic Training](../../docs/user_guide/INTERACTIVE_CYCLIC_TRAINING.md)
+- [System Architecture Specification](../../docs/architecture/SYSTEM_ARCHITECTURE.md)
+- [ADR-009: Interactive Cyclic Training & Hardware Saturation](../../docs/decisions/ADR-009-interactive-cyclic-training-and-hardware-saturation.md)

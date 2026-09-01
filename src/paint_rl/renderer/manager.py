@@ -157,6 +157,8 @@ class RendererService:
                 json={"items": items, "return_base64": return_base64},
                 timeout=self.timeout * 2  # Batch may take longer
             )
+            if resp.status_code == 429:
+                return [{"success": False, "error_classification": "RENDERER_OVERLOAD", "runtime_error": "Too many concurrent requests (HTTP 429)"} for _ in items]
             resp.raise_for_status()
             data = resp.json()
             if data.get("success") and "results" in data:

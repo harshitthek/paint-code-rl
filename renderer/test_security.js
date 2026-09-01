@@ -88,10 +88,19 @@ async function run() {
     }
     
     // Check that directory traversal didn't create a file outside renders dir
-    const outsideFile = path.resolve(__dirname, '../../traversal_test_file.png');
-    if (fs.existsSync(outsideFile)) {
-        console.error("  [FAIL] Directory traversal vulnerability detected: outside file was created!");
-        fs.unlinkSync(outsideFile);
+    const outsideFiles = [
+        path.resolve(__dirname, '../traversal_test_file.png'),
+        path.resolve(__dirname, '../../traversal_test_file.png')
+    ];
+    let traversalLeak = false;
+    for (const outsideFile of outsideFiles) {
+        if (fs.existsSync(outsideFile)) {
+            console.error(`  [FAIL] Directory traversal vulnerability detected: ${outsideFile} was created!`);
+            try { fs.unlinkSync(outsideFile); } catch(e) {}
+            traversalLeak = true;
+        }
+    }
+    if (traversalLeak) {
         failedCount++;
     } else {
         console.log("  [PASS] Directory traversal check: no files created outside renders folder.");

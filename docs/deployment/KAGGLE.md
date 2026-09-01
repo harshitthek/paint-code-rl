@@ -16,7 +16,7 @@
 ## 2. One-Click Notebook Execution
 
 The self-contained, canonical Kaggle notebook is located at:
-👉 [`notebooks/kaggle_paint_rl.ipynb`](file:///notebooks/kaggle_paint_rl.ipynb)
+👉 [`notebooks/kaggle_paint_rl.ipynb`](../../notebooks/kaggle_paint_rl.ipynb)
 
 ### How to Run:
 1. Open [Kaggle Notebooks](https://www.kaggle.com/code) $\rightarrow$ Click **New Notebook**.
@@ -58,6 +58,6 @@ python scripts/train_grpo.py --mode train --steps-per-cycle 50 --max-steps 500 -
 ---
 
 ## 6. Related Documentation
-- [User Guide: Interactive Cyclic Training](file:///docs/user_guide/INTERACTIVE_CYCLIC_TRAINING.md)
-- [System Architecture Specification](file:///docs/architecture/SYSTEM_ARCHITECTURE.md)
-- [ADR-009: Interactive Cyclic Training & Hardware Saturation](file:///docs/decisions/ADR-009-interactive-cyclic-training-and-hardware-saturation.md)
+- [User Guide: Interactive Cyclic Training](../../docs/user_guide/INTERACTIVE_CYCLIC_TRAINING.md)
+- [System Architecture Specification](../../docs/architecture/SYSTEM_ARCHITECTURE.md)
+- [ADR-009: Interactive Cyclic Training & Hardware Saturation](../../docs/decisions/ADR-009-interactive-cyclic-training-and-hardware-saturation.md)
