@@ -1,6 +1,5 @@
-# Apple Silicon MPS Provider Configuration
-# Overlays base.yaml when device is MPS (M4/M3/M2 with 16GB unified memory)
-# Usable ML budget: ~13.18 GB after macOS overhead
+# Apple Silicon MPS Provider Configuration (M4 / M3 / M2 with 16GB unified memory)
+# Usable ML budget: ~13.18 GB after macOS system allocation
 
 model:
   id: "Qwen/Qwen2.5-Coder-1.5B-Instruct"
@@ -8,17 +7,26 @@ model:
   device_map: "auto"
 
 training:
-  batch_size: 2       # Memory-safe for 16GB unified
-  group_size: 2       # Minimum viable for GRPO advantage computation
+  batch_size: 1        # Memory-safe per-step prompt count on 16GB
+  group_size: 4        # 4 generations per prompt for robust GRPO advantage normalization
+  gradient_accumulation_steps: 2
   max_steps: 200
-  checkpoint_freq: 50
+  checkpoint_freq: 25
 
 generation:
-  max_new_tokens: 256  # Reduce KV cache pressure on unified memory
+  max_new_tokens: 384  # Allows full generative art scripts with brushes and loops
   temperature: 0.7
   top_p: 0.9
   repetition_penalty: 1.12
   no_repeat_ngram_size: 6
+
+reward:
+  weights:
+    compile: 0.10
+    prompt_alignment: 0.35
+    visual_richness: 0.25
+    brush_utilization: 0.15
+    aesthetic: 0.15
 
 judge:
   provider: "local"

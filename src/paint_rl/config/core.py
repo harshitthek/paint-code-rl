@@ -50,9 +50,15 @@ class RendererConfig(BaseModel):
     max_inflight_renders: int
 
 class RewardWeights(BaseModel):
-    compile: float
-    hpsv3: float
-    pairwise: float
+    model_config = {"extra": "allow"}
+
+    compile: float = 0.15
+    prompt_alignment: Optional[float] = 0.35
+    visual_richness: Optional[float] = 0.25
+    brush_utilization: Optional[float] = 0.15
+    aesthetic: Optional[float] = 0.10
+    hpsv3: Optional[float] = 0.30
+    pairwise: Optional[float] = 0.60
 
 class RewardConfig(BaseModel):
     weights: RewardWeights
@@ -185,14 +191,97 @@ def load_config(env: str = "local") -> tuple:
     try:
         config = ProjectConfig(**merged)
     except Exception as e:
-        print(f"Configuration Error: {e}")
-        sys.exit(1)
+        raise ValueError(f"Configuration Error: {e}")
 
     # Hash
     config_json = config.model_dump_json(indent=2)
     config_hash = hashlib.sha256(config_json.encode()).hexdigest()
     
     return config, config_json, config_hash
+
+
+def apply_max_hardware_config(config):
+    """Probe hardware and scale config for maximum throughput.
+    
+    Called when --max CLI flag is set. Probes available RAM, CPU cores,
+    and GPU VRAM to maximize group_size, max_new_tokens, and thread pools.
+    
+    Args:
+        config: ProjectConfig instance (mutated in-place).
+        
+    Returns:
+        Dict of adjustments made for logging.
+    """
+    import torch
+    adjustments = {}
+    
+    try:
+        import psutil
+        ram_gb = psutil.virtual_memory().total / 1e9
+        avail_gb = psutil.virtual_memory().available / 1e9
+    except ImportError:
+        ram_gb = 8.0
+        avail_gb = 4.0
+    
+    cpu_count = os.cpu_count() or 4
+    
+    # Set torch threads to use all physical cores
+    torch.set_num_threads(cpu_count)
+    adjustments["torch_threads"] = cpu_count
+    
+    device_type = config.device.type if config else "cpu"
+    
+    if device_type == "mps":
+        # Apple Silicon: scale based on unified memory
+        if ram_gb >= 32:
+            config.training.group_size = 8
+            config.training.batch_size = 8
+            config.generation.max_new_tokens = 512
+        elif ram_gb >= 16:
+            config.training.group_size = 6
+            config.training.batch_size = 6
+            config.generation.max_new_tokens = 448
+        else:
+            config.training.group_size = 4
+            config.training.batch_size = 4
+            config.generation.max_new_tokens = 384
+        adjustments["mps_group_size"] = config.training.group_size
+        adjustments["mps_max_new_tokens"] = config.generation.max_new_tokens
+        
+    elif device_type == "cuda":
+        # CUDA: scale by VRAM
+        try:
+            vram_gb = torch.cuda.get_device_properties(0).total_memory / 1e9
+        except Exception:
+            vram_gb = 8.0
+        
+        if vram_gb >= 40:  # A100
+            config.training.group_size = 8
+            config.training.batch_size = 8
+            config.generation.max_new_tokens = 512
+        elif vram_gb >= 15:  # T4/V100
+            config.training.group_size = 6
+            config.training.batch_size = 6
+            config.generation.max_new_tokens = 450
+        else:
+            config.training.group_size = 4
+            config.training.batch_size = 4
+            config.generation.max_new_tokens = 384
+        adjustments["cuda_vram_gb"] = round(vram_gb, 1)
+        adjustments["cuda_group_size"] = config.training.group_size
+        
+    else:  # CPU
+        # Maximize threads, keep small group_size (CPU generation is slow)
+        config.training.group_size = 2
+        config.training.batch_size = 2
+        config.generation.max_new_tokens = min(256, config.generation.max_new_tokens)
+        adjustments["cpu_cores"] = cpu_count
+    
+    adjustments["ram_total_gb"] = round(ram_gb, 1)
+    adjustments["ram_available_gb"] = round(avail_gb, 1)
+    
+    return adjustments
+
 
 # Lazy singleton initialization
 ACTIVE_CONFIG, CONFIG_JSON, CONFIG_HASH = None, None, None

@@ -25,8 +25,10 @@ renderer:
 reward:
   weights:
     compile: 0.10
-    hpsv3: 0.30
-    pairwise: 0.60
+    prompt_alignment: 0.35
+    visual_richness: 0.25
+    brush_utilization: 0.15
+    aesthetic: 0.15
 judge:
   provider: "local"
   model: "Qwen/Qwen2-VL-2B-Instruct"

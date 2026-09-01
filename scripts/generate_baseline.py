@@ -83,7 +83,7 @@ def main():
 
     # Load model
     import torch
-    from transformers import AutoModelForCausalLM, AutoTokenizer
+    from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
     model_name = select_model(device)
     print(f"Loading model: {model_name}...")
@@ -91,9 +91,15 @@ def main():
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
+    model_config = AutoConfig.from_pretrained(model_name)
+    model_config.sliding_window = None
+    model_config.use_sliding_window = False
+
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
-        torch_dtype=torch.float32 if device.type in ["mps", "cpu"] else torch.float16
+        config=model_config,
+        torch_dtype=torch.float32 if device.type in ["mps", "cpu"] else torch.float16,
+        attn_implementation="sdpa"
     ).to(device)
 
     # Start renderer
@@ -164,14 +170,14 @@ def main():
             img_path = os.path.join(args.output_dir, f"{prompt_id}.png")
             try:
                 shutil.copy(render_res["image_path"], img_path)
-                print(f"  ✅ RENDERED: {img_path} ({render_latency_ms:.0f}ms)")
+                print(f"  [OK] RENDERED: {img_path} ({render_latency_ms:.0f}ms)")
             except Exception as e:
-                print(f"  ⚠️  File copy failed: {e}")
+                print(f"  [WARN] File copy failed: {e}")
                 img_path = None
         else:
             status = render_res.get("error_classification", "UNKNOWN")
             err_msg = render_res.get("runtime_error", "")
-            print(f"  ❌ RENDER FAILED: {status} | {err_msg} ({render_latency_ms:.0f}ms)")
+            print(f"  [FAILED] RENDER FAILED: {status} | {err_msg} ({render_latency_ms:.0f}ms)")
 
         # Build metadata
         metadata = {
