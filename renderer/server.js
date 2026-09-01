@@ -61,6 +61,64 @@ app.post('/render', async (req, res) => {
     }
 });
 
+app.post('/render_batch', async (req, res) => {
+    const { items, return_base64 } = req.body;
+    if (!Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ success: false, error: "items must be a non-empty array" });
+    }
+    
+    if (inflight + items.length > MAX_INFLIGHT) {
+        return res.status(429).json({ success: false, error: "Too many concurrent requests" });
+    }
+    
+    if (recyclePromise) {
+        await recyclePromise;
+    }
+    
+    inflight += items.length;
+    jobsProcessed += items.length;
+    
+    try {
+        const promises = items.map((item, idx) => {
+            const runId = 'batch_' + Date.now() + '_' + idx;
+            const start = Date.now();
+            const opts = return_base64 ? { return_base64: true } : {};
+            return renderCode(item.code || '', item.seed, runId, opts)
+                .then(result => {
+                    result.render_ms = Date.now() - start;
+                    result.batch_index = idx;
+                    return result;
+                })
+                .catch(err => ({
+                    success: false,
+                    image_path: null,
+                    error_classification: 'BATCH_RENDER_ERROR',
+                    runtime_error: err.toString(),
+                    batch_index: idx,
+                    render_ms: Date.now() - start
+                }));
+        });
+        
+        const results = await Promise.all(promises);
+        res.json({ success: true, results });
+    } finally {
+        inflight -= items.length;
+        if (jobsProcessed >= RESTART_AFTER && inflight === 0 && !recyclePromise) {
+            recyclePromise = (async () => {
+                try {
+                    await closeBrowser();
+                    jobsProcessed = 0;
+                } catch (e) {
+                    console.error("Error recycling browser:", e);
+                } finally {
+                    recyclePromise = null;
+                }
+            })();
+            await recyclePromise;
+        }
+    }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', async () => {
     console.log(`Renderer server listening on port ${PORT}`);

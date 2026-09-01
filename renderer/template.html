@@ -15,7 +15,16 @@
             if (typeof p5 !== 'undefined') {
                 const _orig = p5.prototype.createCanvas;
                 p5.prototype.createCanvas = function(w, h, renderer) {
-                    return _orig.call(this, w || 600, h || 600, typeof WEBGL !== 'undefined' ? WEBGL : renderer);
+                    const webglConst = (typeof window !== 'undefined' && window.WEBGL) || (typeof p5 !== 'undefined' && p5.prototype && p5.prototype.WEBGL) || 'webgl';
+                    const c = _orig.call(this, w || 600, h || 600, renderer || webglConst);
+                    setTimeout(function() {
+                        if (typeof window.signalRenderComplete === 'function') {
+                            window.signalRenderComplete();
+                        } else {
+                            window.renderComplete = true;
+                        }
+                    }, 150);
+                    return c;
                 };
             }
         })();
@@ -30,9 +39,17 @@
     <script>
         // Explicit rendering contract
         window.renderComplete = false;
-        window.signalRenderComplete = function() {
+        Object.defineProperty(window, 'signalRenderComplete', {
+            value: function() { window.renderComplete = true; },
+            writable: false,
+            configurable: false
+        });
+        window.addEventListener('error', function() {
             window.renderComplete = true;
-        };
+        });
+        window.addEventListener('unhandledrejection', function() {
+            window.renderComplete = true;
+        });
 
         // INJECT_CODE_HERE
     </script>
