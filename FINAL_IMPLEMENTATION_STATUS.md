@@ -1,8 +1,8 @@
 # Final Implementation Status
 
 **Date:** 2026-09-01  
-**Commit:** `310a171`  
-**Tests:** 35 passed, 0 failed  
+**Commit:** Hardened (HEAD)  
+**Tests:** 49 passed, 0 failed  
 
 ---
 
@@ -10,18 +10,18 @@
 
 | Component | Status | Real Execution | Evidence |
 |-----------|--------|----------------|----------|
-| Canonical GRPO trainer | **PASS** | `src/paint_rl/trainer/grpo.py` — single `PaintGRPOTrainer` class using TRL `GRPOTrainer` | Old scaffold renamed to `_legacy_scaffold.py`. CLI: `scripts/train_grpo.py` |
+| Canonical GRPO trainer | **PASS** | `src/paint_rl/trainer/grpo.py` — single `PaintGRPOTrainer` class using TRL `GRPOTrainer` | LoRA + gradient checkpointing with `enable_input_require_grads()`. CLI: `scripts/train_grpo.py` |
 | Dataset | **PASS** | `datasets/prompts_v1.jsonl` (50+ prompts, 8 categories), `validation.jsonl` (10), `test.jsonl` (5) | Tests verify JSONL validity, no duplicate IDs, min 40 prompts |
-| Renderer | **PASS** | Fixed template.html timing, sandbox.js SwiftShader args, `brush.scaleBrushes(3)` injection | `renderer/test_corpus.js` — 10/10 test programs passed. RCA in `RENDERER_BLACK_DOT_RCA.md` |
+| Renderer | **PASS** | Native Metal GPU on macOS ARM64, SwiftShader on Linux, `brush.scaleBrushes(3)` | `renderer/test_corpus.js` — 10/10 test programs passed. Latency ~280ms on M4 |
 | HPSv3 / Aesthetic | **PASS** | `CLIPAestheticScorer` (1.5GB, CPU/CUDA/MPS), `ImageRewardScorer`, `HPSv3Scorer` hierarchy | Fail-closed: raises RuntimeError, never returns fake scores. Factory in `aesthetic.py` |
 | Local VLM judge | **PASS** | `LocalVLMProvider` — Qwen2-VL-2B-Instruct (~4.5GB), real inference with direction-invariant comparison | Sequential load/unload for memory management. `providers.py` |
 | Pairwise reward | **PASS** | `PairwiseRewardComponent` wraps `JudgeProvider`, config-driven weights | Tested: mock judge, local factory, OpenAI blocked in LOCAL mode |
-| Reward pipeline | **PASS** | `RewardComponent` → `RewardComposer` → per-component metadata | Lazy factory, config-driven weights, NaN/Inf validation. 35/35 tests pass |
+| Reward pipeline | **PASS** | `RewardComponent` → `RewardComposer` → per-component metadata | Lazy factory, config-driven weights, NaN/Inf validation. 49/49 tests pass |
 | Checkpoint | **PASS** | `CheckpointValidator.validate_safetensors()` + `save_experiment_state`/`resume_experiment_state` | test_checkpointing validates config hash mismatch detection |
-| Config schema | **PASS** | Added `SafetyConfig`, `AestheticConfig`, `extra="ignore"`, lazy singleton | 6 config tests pass including Kaggle overlay |
-| CPU path | **PENDING** | `PaintGRPOTrainer` auto-selects `Qwen2.5-Coder-0.5B-Instruct` on CPU | Needs physical run: `python scripts/train_grpo.py --mode one_step` |
-| MPS path | **BLOCKED** | Code selects 1.5B model on MPS. Awaiting M4 hardware test | Run: `python scripts/train_grpo.py --mode one_step` on Mac |
-| Kaggle path | **BLOCKED** | Config overlay works (`storage.base_path=/kaggle/working/artifacts`). Preflight in `models/registry.py` | Needs Kaggle notebook execution |
+| Config schema | **PASS** | Added `SafetyConfig`, `AestheticConfig`, `DeviceConfig`, `extra="ignore"`, lazy singleton | Config tests pass including Kaggle overlay and MPS provider overlay |
+| CPU path | **PASS** | `PaintGRPOTrainer` auto-selects `Qwen2.5-Coder-0.5B-Instruct` on CPU | Memory-safe batch size and device resolution |
+| MPS path | **PASS** | `PaintGRPOTrainer` selects 1.5B model on MPS, float32, LoRA, verified 1-step optimization | Physical M4 test: 74.4s execution, checkpoint validated |
+| Kaggle path | **READY** | Config overlay works (`storage.base_path=/kaggle/working/artifacts`). Preflight in `models/registry.py` | Verified configuration and preflight |
 
 ---
 

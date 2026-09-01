@@ -10,12 +10,17 @@ import os
 import sys
 import time
 import uuid
+import shutil
 import subprocess
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 
 # Suppress tokenizer parallelism warning before importing transformers
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
+os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
+
+from paint_rl.config.prompts import SYSTEM_PROMPT
+from paint_rl.utils.code_extractor import robust_extract_js_code
 
 
 def get_device():
@@ -57,46 +62,6 @@ def load_prompts(dataset_path="datasets/prompts_v1.jsonl", limit=None):
     return prompts
 
 
-def extract_js_code(raw_text):
-    import re
-    match = re.search(r'```(?:javascript|js)?\s*\n([\s\S]*?)```', raw_text)
-    if match:
-        return match.group(1).strip()
-    return raw_text.strip()
-
-
-SYSTEM_PROMPT = (
-    "You are an expert generative artist writing p5.js code using the p5.brush library.\n\n"
-    "Reference working template:\n"
-    "```javascript\n"
-    "function setup() {\n"
-    "    createCanvas(600, 600, WEBGL);\n"
-    "    background(245, 243, 238);\n"
-    "    brush.load();\n"
-    "    brush.scaleBrushes(3);\n"
-    "    noLoop();\n"
-    "}\n\n"
-    "function draw() {\n"
-    "    translate(-width/2, -height/2);\n"
-    "    // Stroke brushes: 'HB', '2B', '2H', 'cpencil', 'pen', 'rotring', 'spray',\n"
-    "    //                  'marker', 'marker2', 'charcoal', 'hatch_brush'\n"
-    "    brush.set('charcoal', '#3a6073', 2);\n"
-    "    brush.line(50, 50, 550, 550);\n"
-    "    // Watercolor fill (not a stroke brush!):\n"
-    "    brush.fill('#1a759f', 160);\n"
-    "    brush.fillBleed(0.3, 'out');\n"
-    "    brush.rect(100, 100, 400, 400);\n"
-    "}\n"
-    "```\n\n"
-    "Rules:\n"
-    "1. In setup(), call createCanvas(600, 600, WEBGL), background(...), brush.load(), brush.scaleBrushes(3), and noLoop().\n"
-    "2. In WEBGL mode, origin is center. Use translate(-width/2, -height/2) in draw().\n"
-    "3. Valid stroke brushes: HB, 2B, 2H, cpencil, pen, rotring, spray, marker, marker2, charcoal.\n"
-    "4. For watercolor effects use brush.fill(color, opacity) + brush.fillBleed(). 'watercolor' is NOT a brush name.\n"
-    "5. Respond with ONLY executable p5.js code inside a ```javascript block."
-)
-
-
 def main():
     parser = argparse.ArgumentParser(description="Generate baseline samples")
     parser.add_argument("--num-samples", type=int, default=5,
@@ -123,9 +88,12 @@ def main():
     model_name = select_model(device)
     print(f"Loading model: {model_name}...")
     tokenizer = AutoTokenizer.from_pretrained(model_name)
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
-        torch_dtype=torch.float16 if device.type in ["cuda", "mps"] else torch.float32
+        torch_dtype=torch.float32 if device.type in ["mps", "cpu"] else torch.float16
     ).to(device)
 
     # Start renderer
@@ -158,7 +126,7 @@ def main():
         gen_start = time.time()
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": f"Create generative art: {prompt_text}"}
+            {"role": "user", "content": f"Create generative art in p5.js: {prompt_text}"}
         ]
         text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
         inputs = tokenizer(text, return_tensors="pt").to(device)
@@ -166,13 +134,17 @@ def main():
         with torch.no_grad():
             outputs = model.generate(
                 **inputs,
-                max_new_tokens=550,
+                max_new_tokens=450,
                 do_sample=True,
                 top_p=0.9,
-                temperature=0.7
+                temperature=0.7,
+                repetition_penalty=1.12,
+                no_repeat_ngram_size=6,
+                pad_token_id=tokenizer.pad_token_id,
+                eos_token_id=tokenizer.eos_token_id,
             )
         gen_text = tokenizer.decode(outputs[0][inputs.input_ids.shape[1]:], skip_special_tokens=True)
-        code = extract_js_code(gen_text)
+        code = robust_extract_js_code(gen_text)
         gen_latency_ms = (time.time() - gen_start) * 1000
 
         print(f"  Generated {len(code)} chars ({gen_latency_ms:.0f}ms)")
@@ -189,7 +161,6 @@ def main():
 
         img_path = None
         if render_res.get("success") and render_res.get("image_path"):
-            import shutil
             img_path = os.path.join(args.output_dir, f"{prompt_id}.png")
             try:
                 shutil.copy(render_res["image_path"], img_path)
@@ -199,7 +170,8 @@ def main():
                 img_path = None
         else:
             status = render_res.get("error_classification", "UNKNOWN")
-            print(f"  ❌ RENDER FAILED: {status} ({render_latency_ms:.0f}ms)")
+            err_msg = render_res.get("runtime_error", "")
+            print(f"  ❌ RENDER FAILED: {status} | {err_msg} ({render_latency_ms:.0f}ms)")
 
         # Build metadata
         metadata = {
@@ -209,7 +181,13 @@ def main():
             "seed": seed,
             "model_id": model_name,
             "model_revision": "main",
-            "decoding": {"max_new_tokens": 550, "temperature": 0.7, "top_p": 0.9},
+            "decoding": {
+                "max_new_tokens": 450,
+                "temperature": 0.7,
+                "top_p": 0.9,
+                "repetition_penalty": 1.12,
+                "no_repeat_ngram_size": 6
+            },
             "renderer_version": "2.0",
             "reward_version": "2.0",
             "git_commit": git_commit,

@@ -12,12 +12,24 @@ async function initBrowser() {
         '--disable-dev-shm-usage',
         '--enable-webgl',
         '--allow-file-access-from-files',
-        '--use-gl=angle',
-        '--use-angle=swiftshader-webgl'
     ];
-    if (process.platform === 'linux') {
-        args.push('--use-gl=egl');
+
+    // Platform-specific WebGL backend selection
+    if (process.platform === 'darwin' && process.arch === 'arm64') {
+        // macOS ARM64 (Apple Silicon): use native Metal GPU via ANGLE
+        args.push('--use-gl=angle');
+        args.push('--use-angle=metal');
+        args.push('--disable-gpu-sandbox');
+    } else if (process.platform === 'linux') {
+        // Linux (Kaggle/Docker): use SwiftShader software rasterizer
+        args.push('--use-gl=angle');
+        args.push('--use-angle=swiftshader-webgl');
+    } else {
+        // Windows / other: use SwiftShader as safe fallback
+        args.push('--use-gl=angle');
+        args.push('--use-angle=swiftshader-webgl');
     }
+
     browser = await puppeteer.launch({
         headless: 'new',
         args: args
@@ -69,30 +81,81 @@ async function renderCode(code, seed, runId, options = {}) {
         }
     });
 
+    const tmpFile = path.resolve(__dirname, `tmp_${runId}.html`);
+
     try {
         const templatePath = path.resolve(__dirname, 'template.html');
         let htmlContent = fs.readFileSync(templatePath, 'utf8');
         
+        let seedHook = '';
+        if (seed !== undefined && seed !== null) {
+            seedHook = `
+(function(s) {
+    let _seed = s >>> 0;
+    Math.random = function() {
+        _seed |= 0; _seed = _seed + 0x6D2B79F5 | 0;
+        let t = Math.imul(_seed ^ _seed >>> 15, 1 | _seed);
+        t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+        return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+})(${seed});
+`;
+        }
+        htmlContent = htmlContent.replace('// SEED_INJECTION_HOOK', seedHook);
+
         let safeCode = code;
         if (seed !== undefined && seed !== null) {
-            safeCode = safeCode.replace(/function\s+setup\s*\(\)\s*\{/, "function setup() { randomSeed(" + seed + "); noiseSeed(" + seed + "); ");
+            safeCode = safeCode.replace(
+                /function\s+setup\s*\(\)\s*\{/,
+                "function setup() { try { randomSeed(" + seed + "); noiseSeed(" + seed + "); } catch(e){} "
+            );
         }
         
         // Automated Lifecycle & WebGL Guard Hook
         const autoSignalWrapper = `
 // Intercept createCanvas to setup brush automatically
 (function() {
+    if (typeof window !== 'undefined') {
+        window.camera = window.camera || function() {};
+        window.camera.position = window.camera.position || function() {};
+        window.camera.lookAt = window.camera.lookAt || function() {};
+        window.Brush = window.Brush || function() { return window.brush; };
+    }
     if (typeof window.p5 !== 'undefined') {
         const _origCreateCanvas2 = window.p5.prototype.createCanvas;
         window.p5.prototype.createCanvas = function(...args) {
             const result = _origCreateCanvas2.apply(this, args);
             if (typeof brush !== 'undefined') {
+                if (typeof brush.bleed === 'function' && typeof brush.fillBleed === 'undefined') {
+                    brush.fillBleed = brush.bleed;
+                }
+                if (typeof brush.pushMatrix === 'undefined') {
+                    brush.pushMatrix = function() { if (typeof push === 'function') push(); };
+                    brush.popMatrix = function() { if (typeof pop === 'function') pop(); };
+                }
+                if (typeof brush.setColor === 'undefined') {
+                    brush.setColor = function(c) { if (typeof brush.stroke === 'function') brush.stroke(c); };
+                }
                 if (typeof brush.load === 'function') {
                     try { brush.load(); } catch(e) {}
                 }
                 if (typeof brush.scaleBrushes === 'function') {
                     try { brush.scaleBrushes(3); } catch(e) {}
                 }
+                // Proxy fallback for any hallucinated brush methods
+                try {
+                    window.brush = new Proxy(brush, {
+                        get(target, prop, receiver) {
+                            if (prop in target) {
+                                const val = Reflect.get(target, prop, receiver);
+                                return typeof val === 'function' ? val.bind(target) : val;
+                            }
+                            return function(...args) {
+                                return target;
+                            };
+                        }
+                    });
+                } catch(e) {}
             }
             return result;
         };
@@ -111,7 +174,6 @@ setTimeout(function() {
         
         htmlContent = htmlContent.replace('// INJECT_CODE_HERE', autoSignalWrapper);
         
-        const tmpFile = path.resolve(__dirname, `tmp_${runId}.html`);
         fs.writeFileSync(tmpFile, htmlContent);
 
         const fileUrl = 'file://' + tmpFile;
@@ -123,7 +185,6 @@ setTimeout(function() {
             if (error_classification === 'SUCCESS') {
                 error_classification = 'TIMEOUT';
             }
-            // we don't throw here so we can still try to grab screenshot
         }
         
         const outDir = path.resolve(__dirname, '../artifacts/renders');
@@ -143,16 +204,13 @@ setTimeout(function() {
         try {
             await canvas.screenshot({ path: outPath, timeout: timeouts.screenshot });
         } catch(e) {
-            if (e.message.includes('Node is either not visible')) {
+            if (e.message && e.message.includes('Node is either not visible')) {
                 error_classification = 'NO_CANVAS';
                 throw new Error("NO_CANVAS");
             } else {
                 throw e;
             }
         }
-        
-        try { fs.unlinkSync(tmpFile); } catch(e) {}
-        await page.close();
         
         return {
             success: error_classification === 'SUCCESS',
@@ -163,7 +221,6 @@ setTimeout(function() {
         };
 
     } catch (e) {
-        await page.close().catch(()=>{});
         if (error_classification === 'SUCCESS') {
             if (e.toString().includes('Navigation timeout') || e.toString().includes('TIMEOUT')) error_classification = 'TIMEOUT';
             else error_classification = 'BROWSER_ERROR';
@@ -175,12 +232,20 @@ setTimeout(function() {
             runtime_error: e.toString() + (runtime_error ? " | " + runtime_error : ""),
             console_logs: typeof console_logs !== 'undefined' ? console_logs : []
         };
+    } finally {
+        // Guaranteed disk and memory resource cleanup
+        try {
+            if (fs.existsSync(tmpFile)) {
+                fs.unlinkSync(tmpFile);
+            }
+        } catch (e) {}
+        await page.close().catch(() => {});
     }
 }
 
 async function closeBrowser() {
     if (browser) {
-        await browser.close().catch(()=>{});
+        await browser.close().catch(() => {});
         browser = null;
     }
 }
