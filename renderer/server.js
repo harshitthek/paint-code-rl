@@ -61,6 +61,8 @@ app.post('/render', async (req, res) => {
     }
 });
 
+let batchSeq = 0;
+
 app.post('/render_batch', async (req, res) => {
     const { items, return_base64 } = req.body;
     if (!Array.isArray(items) || items.length === 0) {
@@ -71,16 +73,17 @@ app.post('/render_batch', async (req, res) => {
         return res.status(429).json({ success: false, error: "Too many concurrent requests" });
     }
     
+    // Atomically reserve capacity before yielding to event loop
+    inflight += items.length;
+    jobsProcessed += items.length;
+
     if (recyclePromise) {
         await recyclePromise;
     }
     
-    inflight += items.length;
-    jobsProcessed += items.length;
-    
     try {
         const promises = items.map((item, idx) => {
-            const runId = 'batch_' + Date.now() + '_' + idx;
+            const runId = 'batch_' + Date.now() + '_' + (++batchSeq) + '_' + idx;
             const start = Date.now();
             const opts = return_base64 ? { return_base64: true } : {};
             return renderCode(item.code || '', item.seed, runId, opts)
@@ -107,10 +110,10 @@ app.post('/render_batch', async (req, res) => {
             recyclePromise = (async () => {
                 try {
                     await closeBrowser();
-                    jobsProcessed = 0;
                 } catch (e) {
                     console.error("Error recycling browser:", e);
                 } finally {
+                    jobsProcessed = 0;
                     recyclePromise = null;
                 }
             })();

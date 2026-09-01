@@ -170,7 +170,10 @@ class ImageRewardScorer(AestheticScorer):
         except ImportError:
             raise RuntimeError("ImageReward library is not installed.")
 
-        dev = "cuda" if torch.cuda.is_available() else "mps" if (hasattr(torch.backends, "mps") and torch.backends.mps.is_available()) else "cpu"
+        if device == "auto":
+            dev = "cuda" if torch.cuda.is_available() else "mps" if (hasattr(torch.backends, "mps") and torch.backends.mps.is_available()) else "cpu"
+        else:
+            dev = str(device)
         self._model = RM.load("ImageReward-v1.0", device=dev)
 
     def score(self, image_path: str, prompt: str = "") -> float:

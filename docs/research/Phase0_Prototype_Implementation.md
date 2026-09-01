@@ -76,8 +76,8 @@ A robust, minimal Node.js Express server to handle Puppeteer.
 
 **Implementation Requirements:**
 *   Maintain a persistent browser context to avoid 2-second cold starts.
-*   For each request, open a new page (or reuse an isolated page pool), inject the code into `<script>`, await a custom `window.renderComplete = true` flag (or timeout), and call `page.screenshot()`.
-*   *Do not return base64 over HTTP* if the Python trainer and Node renderer share a filesystem. Write the PNG to `/artifacts/renders/` and return the filepath.
+*   *Implementation Contract:* The renderer supports both filesystem paths (`image_path`) and in-memory Base64 streaming (`options.return_base64`), eliminating disk bottleneck during high-throughput RL rollouts.
+*   *LoRA Configuration:* LoRA rank is set to $r=8$ (`lora_alpha=16`) targeting projection modules (`["q_proj", "v_proj"]`) across Apple Silicon MPS and CUDA hardware.
 
 ---
 

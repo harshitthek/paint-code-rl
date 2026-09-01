@@ -1,8 +1,9 @@
 import os
 import re
 import ast
+from pathlib import Path
 
-root = r"C:\Users\user\.gemini\antigravity\brain\eabfab2e-f626-4128-9da1-6868c5d0f842\paint-code-rl"
+root = str(Path(__file__).resolve().parent.parent.parent)
 
 print("=== 1. CHECKING SYNTAX OF ALL PYTHON FILES ===")
 py_files = []
