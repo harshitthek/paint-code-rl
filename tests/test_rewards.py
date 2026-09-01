@@ -324,3 +324,127 @@ class TestTelemetry:
         logger = ExperimentLogger(config_hash="test_hash")
         assert logger.run_id.startswith("run_")
         assert logger.config_hash == "test_hash"
+
+
+# ============================================================
+# Multi-Signal Visual & Anti-Cheat Reward Tests
+# ============================================================
+
+class TestMultiSignalVisualRewards:
+    @pytest.fixture
+    def blank_image(self, tmp_path):
+        from PIL import Image
+        img_path = str(tmp_path / "blank.png")
+        img = Image.new("RGB", (200, 200), color=(255, 255, 255))
+        img.save(img_path)
+        return img_path
+
+    @pytest.fixture
+    def colorful_image(self, tmp_path):
+        from PIL import Image, ImageDraw
+        img_path = str(tmp_path / "colorful.png")
+        img = Image.new("RGB", (200, 200), color=(240, 240, 235))
+        draw = ImageDraw.Draw(img)
+        # Draw colorful elements
+        draw.rectangle([20, 20, 100, 100], fill=(220, 50, 50))
+        draw.ellipse([80, 80, 180, 180], fill=(30, 120, 200))
+        draw.line([10, 190, 190, 10], fill=(40, 180, 60), width=5)
+        img.save(img_path)
+        return img_path
+
+    def test_blank_canvas_rejected(self, blank_image):
+        from paint_rl.rewards.aesthetic import calculate_visual_richness
+        res = calculate_visual_richness(blank_image)
+        assert res["is_blank"] is True
+        assert res["richness_score"] == 0.0
+
+    def test_colorful_canvas_richness(self, colorful_image):
+        from paint_rl.rewards.aesthetic import calculate_visual_richness
+        res = calculate_visual_richness(colorful_image)
+        assert res["is_blank"] is False
+        assert res["richness_score"] > 0.4
+        assert res["color_count"] > 1
+
+    def test_brush_utilization_clean_code(self):
+        from paint_rl.rewards.aesthetic import calculate_brush_utilization
+        code = """
+        function setup() {
+            createCanvas(600, 600, WEBGL);
+            background(245, 243, 238);
+            brush.load();
+            brush.scaleBrushes(3);
+            noLoop();
+        }
+        function draw() {
+            translate(-width/2, -height/2);
+            brush.fill('#1a759f', 160);
+            brush.fillBleed(0.3, 'out');
+            brush.rect(100, 100, 400, 400);
+            brush.set('charcoal', '#3a6073', 2);
+            brush.line(50, 300, 550, 300);
+        }
+        """
+        res = calculate_brush_utilization(code)
+        assert res["has_cheat"] is False
+        assert res["brush_score"] > 0.7
+        assert "scaleBrushes" in res["features_used"]
+        assert "watercolor_fill" in res["features_used"]
+
+    def test_text_in_canvas_cheat_detected(self):
+        from paint_rl.rewards.aesthetic import calculate_brush_utilization
+        cheat_code = """
+        function setup() {
+            createCanvas(600, 600, WEBGL);
+            background(255);
+            textSize(32);
+            text("a field of wildflowers", 100, 100);
+        }
+        """
+        res = calculate_brush_utilization(cheat_code)
+        assert res["has_cheat"] is True
+        assert res["cheat_reason"] == "TEXT_IN_CANVAS_HACK"
+        assert res["brush_score"] == 0.0
+
+    def test_visual_richness_reward_component(self, colorful_image):
+        from paint_rl.rewards.components import VisualRichnessRewardComponent
+        comp = VisualRichnessRewardComponent(weight=0.25)
+        res = comp.compute(image_path=colorful_image)
+        assert res.raw_score > 0.4
+        assert res.weighted_score > 0.1
+        assert res.component_name == "visual_richness"
+
+    def test_brush_utilization_reward_component(self):
+        from paint_rl.rewards.components import BrushUtilizationRewardComponent
+        comp = BrushUtilizationRewardComponent(weight=0.15)
+        code = "function setup() { createCanvas(600, 600, WEBGL); brush.load(); brush.scaleBrushes(3); noLoop(); } function draw() { brush.fill('#ff0000', 100); brush.rect(50, 50, 100, 100); }"
+        res = comp.compute(code=code)
+        assert res.raw_score > 0.5
+        assert res.weighted_score > 0.05
+        assert res.component_name == "brush_utilization"
+
+    def test_full_composite_reward_composer(self, colorful_image):
+        from paint_rl.rewards.components import (
+            CompileRewardComponent,
+            VisualRichnessRewardComponent,
+            BrushUtilizationRewardComponent,
+        )
+        from paint_rl.rewards.composer import RewardComposer
+
+        composer = RewardComposer([
+            CompileRewardComponent(weight=0.20),
+            VisualRichnessRewardComponent(weight=0.50),
+            BrushUtilizationRewardComponent(weight=0.30),
+        ])
+
+        code = "function setup() { createCanvas(600, 600, WEBGL); brush.load(); brush.scaleBrushes(3); noLoop(); } function draw() { brush.fill('#ff0000', 100); brush.rect(50, 50, 100, 100); }"
+        bundle = composer.compute(
+            render_result={"success": True, "image_path": colorful_image},
+            image_path=colorful_image,
+            code=code,
+            prompt="draw colorful art"
+        )
+
+        assert bundle["total"] > 0.5
+        assert len(bundle["components"]) == 3
+        assert bundle["error_class"] is None
+
