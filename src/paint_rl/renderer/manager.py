@@ -103,7 +103,7 @@ class RendererService:
                 return False
                 
             if self.is_healthy():
-                print(f"✅ Renderer service is ready at {self.base_url}")
+                print(f"[OK] Renderer service is ready at {self.base_url}")
                 return True
             time.sleep(0.4)
 
@@ -139,6 +139,31 @@ class RendererService:
             return {"success": False, "error_classification": "RENDERER_UNAVAILABLE", "runtime_error": "Cannot connect to renderer server"}
         except Exception as e:
             return {"success": False, "error_classification": "RENDERER_HTTP_ERROR", "runtime_error": str(e)}
+
+    def render_batch(self, items, return_base64=False):
+        """Render multiple code completions concurrently via the batch endpoint.
+        
+        Args:
+            items: List of dicts with keys 'code', 'seed', and optionally 'prompt'.
+            return_base64: If True, returns in-memory base64 PNG instead of disk paths.
+            
+        Returns:
+            List of render result dicts (one per item), ordered by batch_index.
+        """
+        self.ensure_started()
+        try:
+            resp = self._session.post(
+                f"{self.base_url}/render_batch",
+                json={"items": items, "return_base64": return_base64},
+                timeout=self.timeout * 2  # Batch may take longer
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            if data.get("success") and "results" in data:
+                return sorted(data["results"], key=lambda r: r.get("batch_index", 0))
+            return [{"success": False, "error_classification": "BATCH_ERROR"} for _ in items]
+        except Exception as e:
+            return [{"success": False, "error_classification": "BATCH_HTTP_ERROR", "runtime_error": str(e)} for _ in items]
 
     def shutdown(self):
         """Cleanly terminate the renderer process and all child Chrome instances."""

