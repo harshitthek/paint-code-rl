@@ -92,7 +92,7 @@ def run():
         sys.exit(1)
 
     print("Loading language model for p5.js synthesis...")
-    from transformers import AutoModelForCausalLM, AutoTokenizer
+    from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
     from paint_rl.models.registry import ModelRegistry
 
     selection = ModelRegistry.select_models(device=device.type)
@@ -104,9 +104,15 @@ def run():
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
+    model_config = AutoConfig.from_pretrained(model_name)
+    model_config.sliding_window = None
+    model_config.use_sliding_window = False
+
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
-        torch_dtype=torch.float32 if policy_device.type in ["mps", "cpu"] else torch.float16
+        config=model_config,
+        torch_dtype=torch.float32 if policy_device.type in ["mps", "cpu"] else torch.float16,
+        attn_implementation="sdpa"
     ).to(policy_device)
 
     prompts = [

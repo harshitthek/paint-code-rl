@@ -48,9 +48,17 @@ def _print_system_info():
 def main():
     parser = argparse.ArgumentParser(description='Paint-Code-RL GRPO Training')
     parser.add_argument('--mode', choices=['one_step', 'train', 'resume'], default='one_step',
-                        help='Training mode: one_step (hardware validation), train (full), resume')
+                        help='Training mode: one_step (hardware validation), train (cyclic), resume')
     parser.add_argument('--max-steps', type=int, default=None,
                         help='Maximum training steps (overrides config)')
+    parser.add_argument('--steps-per-cycle', type=int, default=25,
+                        help='Number of training steps per interactive cycle (default: 25)')
+    parser.add_argument('--unattended', action='store_true',
+                        help='Run without interactive prompts (for CI/Kaggle/headless runs)')
+    parser.add_argument('--max', action='store_true',
+                        help='Maximize hardware resource saturation (RAM, GPU, CPU cores)')
+    parser.add_argument('--dashboard', action='store_true',
+                        help='Enable live auto-refreshing HTML dashboard (artifacts/dashboard.html)')
     parser.add_argument('--checkpoint-dir', type=str, default='artifacts/checkpoints',
                         help='Directory for saving checkpoints')
     parser.add_argument('--no-renderer', action='store_true',
@@ -66,15 +74,19 @@ def main():
         renderer = RendererService(port=3000)
         print("Starting renderer daemon...")
         if renderer.ensure_started(max_wait_sec=15):
-            print("✅ Renderer ready")
+            print("[OK] Renderer ready")
         else:
-            print("⚠️  Renderer failed to start (will use syntax reward only)")
+            print("[WARN] Renderer failed to start (will use syntax reward only)")
             print("   Fix: cd renderer && npm install && node server.js")
             renderer = None
     
     # Load config (auto-detects MPS and merges overlay)
-    from paint_rl.config.core import ACTIVE_CONFIG
+    from paint_rl.config.core import ACTIVE_CONFIG, apply_max_hardware_config
     from paint_rl.trainer.grpo import PaintGRPOTrainer
+    
+    if args.max:
+        adjustments = apply_max_hardware_config(ACTIVE_CONFIG)
+        print(f"[--max] Hardware saturated: {adjustments}")
     
     trainer = PaintGRPOTrainer(config=ACTIVE_CONFIG, renderer_service=renderer)
     
@@ -89,15 +101,19 @@ def main():
     if args.mode == 'one_step':
         print("Running 1-step hardware validation...")
         result = trainer.one_step_test()
-        print("\n✅ 1-step GRPO validation COMPLETE")
+        print("\n[OK] 1-step GRPO validation COMPLETE")
         print(f"   Training loss: {result.training_loss:.4f}")
     else:
-        print(f"Starting training (max_steps={args.max_steps})...")
-        result = trainer.train(
-            max_steps=args.max_steps, 
-            checkpoint_dir=args.checkpoint_dir
+        print(f"Starting cyclic training (steps_per_cycle={args.steps_per_cycle}, max_steps={args.max_steps})...")
+        result = trainer.train_cyclic(
+            steps_per_cycle=args.steps_per_cycle,
+            max_steps=args.max_steps,
+            checkpoint_dir=args.checkpoint_dir,
+            unattended=args.unattended,
+            enable_dashboard=args.dashboard
         )
-        print("\n✅ Training COMPLETE")
+        print("\n[OK] Cyclic Training COMPLETE")
+        print(f"   Total steps: {result.get('total_steps', 0)} | Total cycles: {result.get('total_cycles', 0)}")
 
 
 if __name__ == '__main__':
