@@ -1,64 +1,63 @@
-# Kaggle T4x2 GPU Hardware Validation Guide
+# Kaggle GPU Training & Hardware Validation Guide
 
-**Target Environment:** Kaggle Notebook with 2x NVIDIA Tesla T4 GPUs (16GB VRAM each).  
+**Target Environment:** Kaggle Notebook with 2x NVIDIA Tesla T4 GPUs (16GB VRAM each) or 1x P100 (16GB VRAM).  
 **Execution Mode:** `FREE` (Zero-cost GPU compute).
 
 ---
 
 ## 1. Prerequisites
 
-* Kaggle account with GPU accelerator enabled.
-* Notebook Accelerator: **GPU T4 x 2** selected.
-* Internet access: **Enabled** (for initial pip / model weight download).
+* Kaggle account with GPU accelerator enabled (Free 30h/week).
+* Notebook Accelerator: **GPU T4 x 2** (or P100) selected.
+* Internet access: **Enabled** (for pip / model weight downloads).
 
 ---
 
-## 2. Notebook Execution Workflow
+## 2. One-Click Notebook Execution
 
-The canonical entrypoint notebook is located at:
-```
-notebooks/Phase0_Kaggle_Validation.ipynb
-```
+The self-contained, canonical Kaggle notebook is located at:
+👉 [`notebooks/kaggle_paint_rl.ipynb`](file:///notebooks/kaggle_paint_rl.ipynb)
 
-### Direct Notebook Execution Cells
-
-```python
-# Cell 1: Install core packages
-!pip install -q torch==2.5.1 transformers==4.49.0 trl==0.15.1 peft bitsandbytes accelerate pydantic safetensors datasets Pillow pyyaml tenacity requests psutil
-
-# Cell 2: Install system renderer dependencies
-!apt-get update -qq && apt-get install -y -qq chromium-browser
-!npm install -g puppeteer
-
-# Cell 3: Clone repository and run the validation driver
-!git clone https://github.com/harshitthek/paint-code-rl.git
-%cd paint-code-rl
-!git checkout v0.1.0-phase0
-
-# Cell 4: Execute Automated Validation Driver
-!python scripts/kaggle_validation_driver.py
-```
+### How to Run:
+1. Open [Kaggle Notebooks](https://www.kaggle.com/code) $\rightarrow$ Click **New Notebook**.
+2. Go to **File** $\rightarrow$ **Import Notebook** $\rightarrow$ Upload `notebooks/kaggle_paint_rl.ipynb`.
+3. Set **Settings** $\rightarrow$ **Accelerator** $\rightarrow$ **GPU T4 x 2** (or GPU P100).
+4. Turn on **Internet**.
+5. Click **Run All**.
 
 ---
 
-## 3. What the Kaggle Driver Tests
+## 3. What Happens During Training
 
-The automated driver (`scripts/kaggle_validation_driver.py`) executes sequentially:
-1. **Hardware Detection:** Probes 2x T4 GPUs (`cuda:0`, `cuda:1`), memory, compute capability.
-2. **Software Verification:** Verifies PyTorch 2.5.1, Transformers 4.49.0, TRL 0.15.1 pinned versions.
-3. **Puppeteer WebGL Headless:** Tests Chromium launch and WebGL rendering in headless container.
-4. **Cost Safety:** Verifies `allow_external_apis == false` in FREE mode.
-5. **Policy Model Feasibility:** Loads `Qwen/Qwen2.5-Coder-1.5B-Instruct` in BF16 onto `cuda:0`.
-6. **VLM Feasibility:** Tests `Qwen/Qwen2.5-VL-7B-Instruct` placement on `cuda:1`.
-7. **GRPO Step:** Executes 1 full GRPO step with Group Size $G=2$ and $G=4$.
-8. **Checkpoint Reload:** Re-loads saved LoRA adapter from `/kaggle/working/artifacts`.
+1. **Environment Setup:** Installs Chromium, Node.js, and PyTorch dependencies.
+2. **WebGL Daemon:** Starts the headless Node.js renderer on port 3000 in the background.
+3. **GRPO Policy Training:** 
+   * Loads `Qwen2.5-Coder-1.5B-Instruct` in FP16 on `cuda:0` with standard Causal SDPA.
+   * Generates groups of $G=4$ completions per prompt.
+   * Computes the 5-tier visual reward matrix (`Compile`, `PromptAlignment`, `VisualRichness`, `BrushUtilization`, `Aesthetic`).
+   * Optimizes LoRA adapter weights via GRPO backprop.
+4. **Interactive Artwork Showcase:** Automatically renders generated p5.brush watercolors and displays them inline in the notebook.
 
 ---
 
 ## 4. Artifact Outputs
 
-All outputs are saved to `/kaggle/working/artifacts/`:
-* `validation_results.json` — Phase-by-phase status and timings
-* `compute_capabilities.json` — GPU specs and memory allocation
-* `model_selection.json` — Measured inference speeds and peak VRAM
-* `grpo_g2/` & `grpo_g4/` — Checkpoint directories
+All training outputs are persisted to `/kaggle/working/artifacts/`:
+* `artifacts/checkpoints/` — Saved LoRA adapter safetensors checkpoints
+* `artifacts/renders/` — Rendered high-resolution PNG artworks
+* `artifacts/logs/` — JSONL experiment telemetry and loss/reward trajectories
+* `artifacts/dashboard.html` — Live HTML visual dashboard with Chart.js curves
+
+---
+
+## 5. Running Unattended Cyclic Training via Terminal / Kaggle Script
+```bash
+python scripts/train_grpo.py --mode train --steps-per-cycle 50 --max-steps 500 --unattended --max --dashboard
+```
+
+---
+
+## 6. Related Documentation
+- [User Guide: Interactive Cyclic Training](file:///docs/user_guide/INTERACTIVE_CYCLIC_TRAINING.md)
+- [System Architecture Specification](file:///docs/architecture/SYSTEM_ARCHITECTURE.md)
+- [ADR-009: Interactive Cyclic Training & Hardware Saturation](file:///docs/decisions/ADR-009-interactive-cyclic-training-and-hardware-saturation.md)
