@@ -46,16 +46,16 @@ python scripts/benchmark.py
 ```bash
 python -m pytest tests/ -v
 ```
-*Expected Output:* `35 passed in ~5s`.
+*Expected Output:* `78 passed in ~8s`.
 
 ### Step 3: Run Renderer Security & Corpus Tests
 ```bash
 cd renderer
-node test_security.js
+npm test
 node test_corpus.js
 cd ..
 ```
-*Expected Output:* All 4 security smoke tests PASS, and all 10 corpus sketches PASS.
+*Expected Output:* All 8 security smoke tests PASS, and all 10 corpus sketches PASS.
 
 ### Step 4: 1-Step Small-Model GRPO Sanity Check
 ```bash
@@ -70,10 +70,16 @@ python scripts/train_grpo.py --mode one_step
 * `artifacts/compute_capabilities.json` — Hardware capability dump
 * `artifacts/checkpoints/step_1_test/` — LoRA adapter checkpoint
 * `artifacts/renders/` — Generated canvas PNG outputs
+* `artifacts/dashboard.html` — Live HTML telemetry dashboard
 
 ---
 
-## 5. Troubleshooting
+## 5. Troubleshooting & Related Links
 
 * **Renderer fails to launch:** Ensure Chromium or Chrome is installed. On Linux, ensure `libgbm`, `libnss3`, `libasound2` are present (`apt-get install -y chromium-browser`).
-* **PyTorch SDPA Warning:** Harmless warning regarding Sliding Window Attention on SDPA. Suppress with `export TOKENIZERS_PARALLELISM=false`.
+* **Sliding Window Clean Setup:** Injected `sliding_window = None` at `AutoConfig` level to guarantee clean SDPA execution without warnings.
+
+### References:
+- [User Guide: Interactive Cyclic Training](file:///docs/user_guide/INTERACTIVE_CYCLIC_TRAINING.md)
+- [System Architecture Specification](file:///docs/architecture/SYSTEM_ARCHITECTURE.md)
+- [ADR-009: Interactive Cyclic Training & Hardware Saturation](file:///docs/decisions/ADR-009-interactive-cyclic-training-and-hardware-saturation.md)
