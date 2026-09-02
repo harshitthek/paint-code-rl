@@ -191,10 +191,10 @@ async function renderCode(code, seed, runId, options = {}) {
     const safeRunId = String(runId || 'render_' + Date.now()).replace(/[^a-zA-Z0-9_-]/g, '_');
     
     const timeouts = {
-        browser_startup: options.browser_startup_timeout_ms || 10000,
-        page_load: options.page_load_timeout_ms || 5000,
-        code_execution: options.code_execution_timeout_ms || 4000,
-        screenshot: options.screenshot_timeout_ms || 3000
+        browser_startup: options.browser_startup_timeout_ms || 25000,
+        page_load: options.page_load_timeout_ms || 25000,
+        code_execution: options.code_execution_timeout_ms || 15000,
+        screenshot: options.screenshot_timeout_ms || 8000
     };
 
     const b = await initBrowser();
@@ -758,7 +758,7 @@ setTimeout(function() {
         fs.writeFileSync(tmpFile, htmlContent);
 
         const fileUrl = 'file://' + tmpFile;
-        await page.goto(fileUrl, { waitUntil: 'load' });
+        await page.goto(fileUrl, { waitUntil: 'domcontentloaded', timeout: timeouts.page_load });
         
         try {
             await page.waitForFunction('window.renderComplete === true', { timeout: timeouts.code_execution + 500 });

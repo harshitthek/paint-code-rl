@@ -365,6 +365,27 @@ function draw(){
 }
 `,
         expectSuccess: true
+    },
+    {
+        name: "21. Kaggle Rollout 11: 800x650 mountain landscape loop under domcontentloaded",
+        code: `
+function setup(){
+    createCanvas(800, 650, WEBGL);
+    background(245,243,238);
+    brush.load();
+    brush.scaleBrushes(3);
+    noLoop();
+}
+
+function draw(){
+    translate(-width/2,-height/2);
+    for(let i=0;i<20;i++){
+        brush.set('charcoal', '#3a6073', 2);
+        brush.line(i * 30, 200, i * 30 + 50, 400);
+    }
+}
+`,
+        expectSuccess: true
     }
 ];
 
