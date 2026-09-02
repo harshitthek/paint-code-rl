@@ -678,8 +678,47 @@ async function renderCode(code, seed, runId, options = {}) {
         };
     }
 })();
+// Omnipresent Lexical Proxy: intercepts ANY undeclared identifier (e.g. mist_size, TWO, etc.)
+(function() {
+    if (typeof window === 'undefined') return;
+    var _sandboxProxy = new Proxy(window, {
+        has(target, prop) {
+            if (prop === Symbol.unscopables) return false;
+            return true;
+        },
+        get(target, prop) {
+            if (prop in target) {
+                const v = target[prop];
+                if (prop === 'camera' || prop === 'brush' || prop === 'p5') return v;
+                return typeof v === 'function' ? v.bind(target) : v;
+            }
+            if (typeof prop === 'string') {
+                if (prop.endsWith('_size') || prop.endsWith('Size') || prop.includes('size')) return 20;
+                if (prop.endsWith('_color') || prop.endsWith('Color') || prop.includes('color') || prop.includes('col')) return '#1a759f';
+                if (prop.endsWith('_alpha') || prop.endsWith('alpha') || prop.endsWith('opacity')) return 160;
+                if (prop.endsWith('_count') || prop.endsWith('Count') || prop.includes('num')) return 10;
+                if (prop.endsWith('_width') || prop.endsWith('Width') || prop.includes('width')) return 100;
+                if (prop.endsWith('_height') || prop.endsWith('Height') || prop.includes('height')) return 100;
+                if (prop.endsWith('_radius') || prop.endsWith('Radius') || prop.includes('radius')) return 50;
+                if (prop.endsWith('_speed') || prop.endsWith('Speed')) return 1;
+                if (prop.endsWith('_angle') || prop.endsWith('Angle')) return 0;
+                if (prop.endsWith('_spacing') || prop.endsWith('Spacing')) return 10;
+            }
+            return 10;
+        },
+        set(target, prop, value) {
+            target[prop] = value;
+            return true;
+        }
+    });
 
+    with (_sandboxProxy) {
 ${safeCode}
+        if (typeof setup === 'function') window.setup = setup;
+        if (typeof draw === 'function') window.draw = draw;
+        if (typeof preload === 'function') window.preload = preload;
+    }
+})();
 
 // Auto-signal completion after draw() or setup() has completed painting the canvas
 (function() {

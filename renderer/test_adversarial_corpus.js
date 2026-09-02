@@ -345,6 +345,26 @@ function draw(){
 }
 `,
         expectSuccess: true
+    },
+    {
+        name: "20. Kaggle Rollout 10: mist_size undeclared identifier absorbed by proxy",
+        code: `
+function setup(){
+    createCanvas(640, 480, WEBGL);
+    let trunkTexture = loadImage('trunk.jpg');
+    let leafTexture = loadImage('leaf.png');
+    let mistTexture = loadImage('mist.png');
+    brush.load();
+    brush.scaleBrushes(3);
+    let trunkSize = 10;
+    let leafSize = 5;
+}
+function draw(){
+    brush.set('charcoal', '#334455', 2);
+    brush.line(0, 0, mist_size * 5, mist_size * 5);
+}
+`,
+        expectSuccess: true
     }
 ];
 
