@@ -16,7 +16,8 @@
                 const _orig = p5.prototype.createCanvas;
                 p5.prototype.createCanvas = function(w, h, renderer) {
                     const webglConst = (typeof window !== 'undefined' && window.WEBGL) || (typeof p5 !== 'undefined' && p5.prototype && p5.prototype.WEBGL) || 'webgl';
-                    const c = _orig.call(this, w || 600, h || 600, renderer || webglConst);
+                    const targetRenderer = (window.__FORCE_WEBGL || !renderer) ? webglConst : renderer;
+                    const c = _orig.call(this, w || 600, h || 600, targetRenderer);
                     setTimeout(function() {
                         if (typeof window.signalRenderComplete === 'function') {
                             window.signalRenderComplete();
@@ -154,10 +155,22 @@
             writable: false,
             configurable: false
         });
+        function ensureFallbackCanvas() {
+            try {
+                if (!document.querySelector('canvas')) {
+                    const c = document.createElement('canvas');
+                    c.width = 600;
+                    c.height = 600;
+                    document.body.appendChild(c);
+                }
+            } catch(e) {}
+        }
         window.addEventListener('error', function() {
+            ensureFallbackCanvas();
             window.renderComplete = true;
         });
         window.addEventListener('unhandledrejection', function() {
+            ensureFallbackCanvas();
             window.renderComplete = true;
         });
 

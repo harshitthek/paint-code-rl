@@ -16,12 +16,23 @@ function balanceTokens(jsCode) {
     return jsCode;
 }
 
+function ensureCanvasAndSetup(code) {
+    if (!code) return code;
+    if (!code.includes("setup") && code.includes("draw")) {
+        return "function setup() {\n  createCanvas(600, 600, WEBGL);\n}\n" + code;
+    }
+    if (!code.includes("setup") && !code.includes("draw")) {
+        return "function setup() {\n  createCanvas(600, 600, WEBGL);\n" + code + "\n}";
+    }
+    if (!code.includes("createCanvas") && code.includes("setup")) {
+        return code.replace(/(function\s+setup\s*\(\)\s*\{)/, '$1\n  createCanvas(600, 600, WEBGL);\n');
+    }
+    return code;
+}
+
 function autoRepairJS(jsCode) {
     if (!jsCode) return jsCode;
-    let candidate = balanceTokens(jsCode);
-    if (!candidate.includes("createCanvas") && candidate.includes("setup")) {
-        candidate = candidate.replace(/(function\s+setup\s*\(\)\s*\{)/, '$1\n  createCanvas(600, 600, WEBGL);\n');
-    }
+    let candidate = ensureCanvasAndSetup(balanceTokens(jsCode));
     try {
         new vm.Script(candidate);
         return candidate;
@@ -30,10 +41,7 @@ function autoRepairJS(jsCode) {
     let lines = jsCode.split("\n");
     while (lines.length > 2) {
         lines.pop();
-        let cand = balanceTokens(lines.join("\n"));
-        if (!cand.includes("createCanvas") && cand.includes("setup")) {
-            cand = cand.replace(/(function\s+setup\s*\(\)\s*\{)/, '$1\n  createCanvas(600, 600, WEBGL);\n');
-        }
+        let cand = ensureCanvasAndSetup(balanceTokens(lines.join("\n")));
         try {
             new vm.Script(cand);
             return cand;
@@ -287,8 +295,12 @@ async function renderCode(code, seed, runId, options = {}) {
             '// [auto-healed brush assignment]\n'
         );
 
-        // Replace external loadImage calls with instant procedural dummy images (prevents preload hangs)
+        // Replace external asset loaders with instant procedural dummy values (prevents preload hangs)
         safeCode = safeCode.replace(/loadImage\s*\([^)]*\)/g, 'createImage(100, 100)');
+        safeCode = safeCode.replace(/loadFont\s*\([^)]*\)/g, '""');
+        safeCode = safeCode.replace(/loadJSON\s*\([^)]*\)/g, '{}');
+        safeCode = safeCode.replace(/loadStrings\s*\([^)]*\)/g, '[]');
+        safeCode = safeCode.replace(/loadSound\s*\([^)]*\)/g, '{}');
 
         // Inline preload() body into setup() so variables (e.g. mountains = [], clouds = []) are initialized
         // without risking premature brush.load() failure before createCanvas()
