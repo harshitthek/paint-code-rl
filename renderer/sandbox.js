@@ -173,16 +173,29 @@ async function renderCode(code, seed, runId, options = {}) {
         htmlContent = htmlContent.replace('// SEED_INJECTION_HOOK', seedHook);
 
         let safeCode = autoRepairJS(code);
-        // Heal accidental brush re-declarations (e.g. const brush = new p5.Brush())
+        // Heal accidental brush re-declarations (e.g. let brush; or const brush = new p5.Brush())
         safeCode = safeCode.replace(
-            /^[ \t]*(?:const|let|var)\s+brush\s*=\s*(?:new\s+(?:p5\.)?Brush\([^)]*\)|brush|window\.brush|[^;\n]+);?/gmi,
+            /^[ \t]*(?:const|let|var)\s+brush\s*(?:=\s*(?:new\s+(?:p5\.)?Brush\([^)]*\)|brush|window\.brush|[^;\n]+))?;?/gmi,
             '// [auto-healed brush declaration]\n'
         );
+        safeCode = safeCode.replace(
+            /^[ \t]*brush\s*=\s*new\s+(?:p5\.)?Brush\([^)]*\);?/gmi,
+            '// [auto-healed brush assignment]\n'
+        );
 
-        // Disarm preload() to prevent hangs on non-existent external image assets
-        safeCode = safeCode.replace(/function\s+preload\s*\(/gi, 'function _unused_preload(');
-        // Replace external loadImage calls with instant procedural dummy images
+        // Replace external loadImage calls with instant procedural dummy images (prevents preload hangs)
         safeCode = safeCode.replace(/loadImage\s*\([^)]*\)/g, 'createImage(100, 100)');
+
+        // Inline preload() body into setup() so variables (e.g. mountains = [], clouds = []) are initialized
+        // without risking premature brush.load() failure before createCanvas()
+        const preloadMatch = safeCode.match(/function\s+preload\s*\(\)\s*\{([\s\S]*?)\}/);
+        if (preloadMatch) {
+            const preloadBody = preloadMatch[1]
+                .replace(/brush\s*=\s*new[^;\n]+;?/g, '')
+                .replace(/brush\.load\(\);?/g, '');
+            safeCode = safeCode.replace(/function\s+preload\s*\(\)\s*\{[\s\S]*?\}/, '// [inlined preload]');
+            safeCode = safeCode.replace(/(function\s+setup\s*\(\)\s*\{)/, `$1\n  ${preloadBody}\n`);
+        }
 
         if (seed !== undefined && seed !== null) {
             safeCode = safeCode.replace(
