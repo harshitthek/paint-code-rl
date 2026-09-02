@@ -6,6 +6,11 @@ from pydantic import BaseModel, Field
 from typing import Dict, Optional, Any
 
 
+class ConfigurationError(ValueError):
+    """Raised when configuration validation or mode invariants fail."""
+    pass
+
+
 class SafetyConfig(BaseModel):
     allow_external_apis: bool = False
 

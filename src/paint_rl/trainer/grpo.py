@@ -21,10 +21,8 @@ try:
 except Exception:
     pass
 
-from datasets import Dataset
-from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
-from trl import GRPOTrainer, GRPOConfig
-from peft import LoraConfig
+# Heavy dependencies (transformers, trl, peft, datasets) are imported lazily
+# inside their respective methods to prevent 40s module import overhead on Windows/macOS.
 
 from paint_rl.config.prompts import SYSTEM_PROMPT
 from paint_rl.utils.code_extractor import robust_extract_js_code
@@ -160,6 +158,8 @@ class PaintGRPOTrainer:
 
     def load_model(self):
         """Load model and tokenizer, respecting device constraints and attention config."""
+        from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
+
         model_id = self._resolve_model_id()
         dtype = self._get_dtype()
         
@@ -262,6 +262,8 @@ class PaintGRPOTrainer:
 
     def load_dataset(self, split="train"):
         """Load prompts from versioned dataset files formatted as conversational ChatML messages."""
+        from datasets import Dataset
+
         if split == "train":
             filename = "prompts_v1.jsonl"
         else:
@@ -330,6 +332,9 @@ class PaintGRPOTrainer:
             dataset = self.load_dataset()
         reward_funcs = self.build_reward_functions()
         
+        from peft import LoraConfig
+        from trl import GRPOTrainer, GRPOConfig
+
         peft_config = LoraConfig(
             r=8,
             lora_alpha=16,
@@ -453,6 +458,9 @@ class PaintGRPOTrainer:
         dataset = self.load_dataset("train")
         reward_funcs = self.build_reward_functions()
         
+        from peft import LoraConfig
+        from trl import GRPOTrainer, GRPOConfig
+
         peft_config = LoraConfig(
             r=8,
             lora_alpha=16,

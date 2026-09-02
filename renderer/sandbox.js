@@ -19,6 +19,9 @@ function balanceTokens(jsCode) {
 function autoRepairJS(jsCode) {
     if (!jsCode) return jsCode;
     let candidate = balanceTokens(jsCode);
+    if (!candidate.includes("createCanvas") && candidate.includes("setup")) {
+        candidate = candidate.replace(/(function\s+setup\s*\(\)\s*\{)/, '$1\n  createCanvas(600, 600, WEBGL);\n');
+    }
     try {
         new vm.Script(candidate);
         return candidate;
@@ -28,6 +31,9 @@ function autoRepairJS(jsCode) {
     while (lines.length > 2) {
         lines.pop();
         let cand = balanceTokens(lines.join("\n"));
+        if (!cand.includes("createCanvas") && cand.includes("setup")) {
+            cand = cand.replace(/(function\s+setup\s*\(\)\s*\{)/, '$1\n  createCanvas(600, 600, WEBGL);\n');
+        }
         try {
             new vm.Script(cand);
             return cand;
@@ -209,9 +215,15 @@ async function renderCode(code, seed, runId, options = {}) {
 // Intercept createCanvas to setup brush automatically
 (function() {
     if (typeof window !== 'undefined') {
-        window.camera = window.camera || function() {};
-        window.camera.position = window.camera.position || function() {};
-        window.camera.lookAt = window.camera.lookAt || function() {};
+        const _dummyCam = function() {};
+        _dummyCam.position = function() {};
+        _dummyCam.lookAt = function() {};
+        if (typeof window.camera === 'function') {
+            window.camera.position = window.camera.position || function() {};
+            window.camera.lookAt = window.camera.lookAt || function() {};
+        } else {
+            window.camera = _dummyCam;
+        }
         window.Brush = function() { return window.brush || {}; };
         window.p5 = window.p5 || {};
         window.p5.Brush = function() { return window.brush || {}; };
@@ -242,6 +254,21 @@ async function renderCode(code, seed, runId, options = {}) {
         window.y = 300;
         window.w = 600;
         window.h = 600;
+        window.out = 'out';
+        window.in = 'in';
+        window.inside = 'in';
+        window.outside = 'out';
+        window.charcoal = 'charcoal';
+        window.pen = 'pen';
+        window.rotring = 'rotring';
+        window.spray = 'spray';
+        window.marker = 'marker';
+        window.marker2 = 'marker2';
+        window.HB = 'HB';
+        window.cpencil = 'cpencil';
+        window.hatch_brush = 'hatch_brush';
+        window.center = 'center';
+        window.CENTER = 'center';
     }
     if (typeof window.p5 !== 'undefined' && window.p5.prototype) {
         window.p5.prototype.Brush = function() { return window.brush || {}; };
@@ -266,7 +293,26 @@ async function renderCode(code, seed, runId, options = {}) {
         const _origCreateCanvas2 = window.p5.prototype.createCanvas;
         window.p5.prototype.createCanvas = function(...args) {
             const result = _origCreateCanvas2.apply(this, args);
+            if (typeof window.camera === 'function') {
+                window.camera.position = window.camera.position || function() {};
+                window.camera.lookAt = window.camera.lookAt || function() {};
+            }
             if (typeof brush !== 'undefined') {
+                if (typeof brush.fill === 'function') {
+                    const _origFill = brush.fill;
+                    brush.fill = function(c, ...rest) {
+                        if (typeof c === 'function' || !c) c = '#1a759f';
+                        return _origFill.apply(this, [c, ...rest]);
+                    };
+                }
+                if (typeof brush.set === 'function') {
+                    const _origSet = brush.set;
+                    brush.set = function(name, c, ...rest) {
+                        if (typeof name === 'function') name = 'charcoal';
+                        if (typeof c === 'function') c = '#3a6c73';
+                        return _origSet.apply(this, [name, c, ...rest]);
+                    };
+                }
                 if (typeof brush.bleed === 'function' && typeof brush.fillBleed === 'undefined') {
                     brush.fillBleed = brush.bleed;
                 }

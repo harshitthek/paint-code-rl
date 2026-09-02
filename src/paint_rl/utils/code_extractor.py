@@ -93,15 +93,22 @@ def robust_extract_js_code(raw_text: str) -> str:
     text = re.sub(r'<think>[\s\S]*?</think>', '', text, flags=re.IGNORECASE).strip()
     
     # 2. Closed markdown code fences (supports js, javascript, p5, p5js, or untagged)
-    closed_fence_match = re.search(
+    closed_blocks = re.findall(
         r'```(?:javascript|js|p5js|p5)?\s*\n([\s\S]*?)```', 
         text, 
         flags=re.IGNORECASE
     )
-    if closed_fence_match:
-        code = closed_fence_match.group(1).strip()
-        if code:
-            return _sanitize_trailing_truncation(code)
+    if closed_blocks:
+        chosen = None
+        for b in closed_blocks:
+            if "setup" in b and "createCanvas" in b:
+                chosen = b
+                break
+            elif "setup" in b or "createCanvas" in b:
+                chosen = b
+        if not chosen:
+            chosen = max(closed_blocks, key=len)
+        return _sanitize_trailing_truncation(chosen).strip()
             
     # 3. Unclosed markdown code fence (generation truncated mid-code without closing ```)
     unclosed_fence_match = re.search(

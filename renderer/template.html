@@ -27,6 +27,10 @@
                     return c;
                 };
             }
+            if (typeof p5 !== 'undefined' && p5.prototype && p5.prototype.camera) {
+                p5.prototype.camera.position = function() {};
+                p5.prototype.camera.lookAt = function() {};
+            }
         })();
     </script>
     <script src="assets/p5.brush.min.js"></script>
