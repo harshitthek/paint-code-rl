@@ -85,7 +85,7 @@ class RendererService:
             if platform.system() == "Linux" and shutil.which("xvfb-run"):
                 cmd = ["xvfb-run", "-a", "node", "server.js"]
                 
-            log_dir = os.path.join(self._repo_root, "artifacts", "logs")
+            log_dir = os.path.join(repo_root, "artifacts", "logs")
             os.makedirs(log_dir, exist_ok=True)
             self._log_file_path = os.path.join(log_dir, "renderer.log")
             self._log_file = open(self._log_file_path, "a", encoding="utf-8")
