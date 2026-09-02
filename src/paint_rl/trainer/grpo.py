@@ -334,11 +334,15 @@ class PaintGRPOTrainer:
         print(f"  max_new_tokens={max_new_tokens}")
         print(f"  output_dir={output_dir}")
         
+        prompt_batch_size = 1
+        num_gens = group_size
+        grad_accum = max(1, batch_size // group_size) if batch_size > group_size else 1
+        
         grpo_kwargs = {
             "output_dir": output_dir,
             "learning_rate": lr,
-            "per_device_train_batch_size": batch_size,
-            "gradient_accumulation_steps": 1,
+            "per_device_train_batch_size": prompt_batch_size,
+            "gradient_accumulation_steps": grad_accum,
             "num_generations": num_gens,
             "max_completion_length": max_new_tokens,
             "max_steps": steps,
@@ -349,11 +353,13 @@ class PaintGRPOTrainer:
         }
         
         if self.device.type == "mps":
-            grpo_kwargs["gradient_checkpointing"] = False
+            grpo_kwargs["gradient_checkpointing"] = True
+            grpo_kwargs["gradient_checkpointing_kwargs"] = {"use_reentrant": False}
             grpo_kwargs["fp16"] = False
             grpo_kwargs["bf16"] = False
         elif self.device.type == "cuda":
             grpo_kwargs["gradient_checkpointing"] = True
+            grpo_kwargs["gradient_checkpointing_kwargs"] = {"use_reentrant": False}
             grpo_kwargs["fp16"] = not torch.cuda.is_bf16_supported()
             grpo_kwargs["bf16"] = torch.cuda.is_bf16_supported()
         else:
@@ -475,11 +481,15 @@ class PaintGRPOTrainer:
             print(f"  Target Temperature: {current_temp:.3f} | LR: 5e-6")
             print("=" * 60)
             
+            self._clear_memory()
+            prompt_batch_size = 1
+            grad_accum = max(1, batch_size // num_gens) if batch_size > num_gens else 1
+            
             grpo_kwargs = {
                 "output_dir": output_dir,
                 "learning_rate": 5e-6,
-                "per_device_train_batch_size": batch_size,
-                "gradient_accumulation_steps": 1,
+                "per_device_train_batch_size": prompt_batch_size,
+                "gradient_accumulation_steps": grad_accum,
                 "num_generations": num_gens,
                 "max_completion_length": max_new_tokens,
                 "max_steps": cycle_steps,
@@ -489,11 +499,13 @@ class PaintGRPOTrainer:
             }
             
             if self.device.type == "mps":
-                grpo_kwargs["gradient_checkpointing"] = False
+                grpo_kwargs["gradient_checkpointing"] = True
+                grpo_kwargs["gradient_checkpointing_kwargs"] = {"use_reentrant": False}
                 grpo_kwargs["fp16"] = False
                 grpo_kwargs["bf16"] = False
             elif self.device.type == "cuda":
                 grpo_kwargs["gradient_checkpointing"] = True
+                grpo_kwargs["gradient_checkpointing_kwargs"] = {"use_reentrant": False}
                 grpo_kwargs["fp16"] = not torch.cuda.is_bf16_supported()
                 grpo_kwargs["bf16"] = torch.cuda.is_bf16_supported()
             else:
