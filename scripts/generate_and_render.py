@@ -19,6 +19,7 @@ import argparse
 import shutil
 import torch
 from peft import PeftModel
+from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
 os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
