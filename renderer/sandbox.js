@@ -64,10 +64,26 @@ async function initBrowser() {
         args.push('--use-angle=swiftshader-webgl');
     }
 
-    browser = await puppeteer.launch({
+    const launchOptions = {
         headless: 'new',
         args: args
-    });
+    };
+
+    const candidatePaths = [
+        process.env.PUPPETEER_EXECUTABLE_PATH,
+        '/usr/bin/google-chrome',
+        '/usr/bin/google-chrome-stable',
+        '/usr/bin/chromium-browser',
+        '/usr/bin/chromium'
+    ];
+    for (const p of candidatePaths) {
+        if (p && fs.existsSync(p)) {
+            launchOptions.executablePath = p;
+            break;
+        }
+    }
+
+    browser = await puppeteer.launch(launchOptions);
     return browser;
 }
 
