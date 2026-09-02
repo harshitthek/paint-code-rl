@@ -181,6 +181,8 @@ async function renderCode(code, seed, runId, options = {}) {
 
         // Disarm preload() to prevent hangs on non-existent external image assets
         safeCode = safeCode.replace(/function\s+preload\s*\(/gi, 'function _unused_preload(');
+        // Replace external loadImage calls with instant procedural dummy images
+        safeCode = safeCode.replace(/loadImage\s*\([^)]*\)/g, 'createImage(100, 100)');
 
         if (seed !== undefined && seed !== null) {
             safeCode = safeCode.replace(
@@ -200,6 +202,13 @@ async function renderCode(code, seed, runId, options = {}) {
         window.Brush = function() { return window.brush || {}; };
         window.p5 = window.p5 || {};
         window.p5.Brush = function() { return window.brush || {}; };
+        window.loadImage = function(p, s, f) {
+            try {
+                const img = (typeof createImage === 'function') ? createImage(100, 100) : { width: 100, height: 100 };
+                if (typeof s === 'function') s(img);
+                return img;
+            } catch(e) { return { width: 100, height: 100 }; }
+        };
         
         // Fallback variables so unquoted parameter identifiers never throw ReferenceError
         window.strength = 0.2;
@@ -224,7 +233,6 @@ async function renderCode(code, seed, runId, options = {}) {
     if (typeof window.p5 !== 'undefined' && window.p5.prototype) {
         window.p5.prototype.Brush = function() { return window.brush || {}; };
         // Safe loadImage fallback to prevent preload hangs
-        const _origLI = window.p5.prototype.loadImage;
         window.p5.prototype.loadImage = function(path, success, failure) {
             try {
                 const img = this.createImage(100, 100);
@@ -233,6 +241,14 @@ async function renderCode(code, seed, runId, options = {}) {
             } catch(e) {
                 return {};
             }
+        };
+        // Safe image() drawer that ignores null/undefined
+        const _origImage = window.p5.prototype.image;
+        window.p5.prototype.image = function(img, ...args) {
+            if (!img) return;
+            try {
+                return _origImage.apply(this, [img, ...args]);
+            } catch(e) {}
         };
         const _origCreateCanvas2 = window.p5.prototype.createCanvas;
         window.p5.prototype.createCanvas = function(...args) {
@@ -276,21 +292,28 @@ async function renderCode(code, seed, runId, options = {}) {
 
 ${safeCode}
 
-// Auto-signal completion after setup completes (unless explicitly signaled earlier or looping)
+// Auto-signal completion after draw() or setup() has completed painting the canvas
 (function() {
-    if (typeof window !== 'undefined' && typeof window.setup === 'function') {
-        const _userSetup = window.setup;
-        window.setup = function(...args) {
-            const res = _userSetup.apply(this, args);
-            setTimeout(function() {
-                if (typeof window.signalRenderComplete === 'function') {
-                    window.signalRenderComplete();
-                } else {
+    if (typeof window !== 'undefined') {
+        if (typeof window.draw === 'function') {
+            const _userDraw = window.draw;
+            window.draw = function(...args) {
+                const res = _userDraw.apply(this, args);
+                setTimeout(function() {
                     window.renderComplete = true;
-                }
-            }, 100);
-            return res;
-        };
+                }, 400);
+                return res;
+            };
+        } else if (typeof window.setup === 'function') {
+            const _userSetup = window.setup;
+            window.setup = function(...args) {
+                const res = _userSetup.apply(this, args);
+                setTimeout(function() {
+                    window.renderComplete = true;
+                }, 400);
+                return res;
+            };
+        }
     }
 })();
 

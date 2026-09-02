@@ -206,8 +206,17 @@ def main():
             "Paint an enchanted forest with textured tree trunks, watercolor foliage, and misty light."
         ]
 
-    os.makedirs(args.output_dir, exist_ok=True)
+    print(f"\nEvaluating on {len(prompts)} distinct generative art prompts...")
     results = []
+
+    # Clean previous renders in output directory
+    os.makedirs(args.output_dir, exist_ok=True)
+    import glob
+    for old_png in glob.glob(os.path.join(args.output_dir, "*.png")):
+        try:
+            os.remove(old_png)
+        except Exception:
+            pass
 
     for i, p in enumerate(prompts):
         print(f"\n--- Generating Artwork {i+1}/{len(prompts)}: '{p}' ---")
