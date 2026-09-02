@@ -39,11 +39,15 @@ class DashboardWriter:
         """Generate static standalone HTML page."""
         cycles = [m.get("cycle", idx + 1) for idx, m in enumerate(self._history)]
         losses = [m.get("loss", 0.0) for m in self._history]
+        rewards = [m.get("reward", 0.0) for m in self._history]
+        grad_norms = [m.get("grad_norm", 0.0) for m in self._history]
         temps = [m.get("temperature", 0.7) for m in self._history]
         steps = [m.get("steps_done", 0) for m in self._history]
         
         labels_json = json.dumps([f"Cycle {c} (Step {s})" for c, s in zip(cycles, steps)]).replace('<', '\\u003c').replace('>', '\\u003e').replace('&', '\\u0026')
         losses_json = json.dumps(losses).replace('<', '\\u003c').replace('>', '\\u003e').replace('&', '\\u0026')
+        rewards_json = json.dumps(rewards).replace('<', '\\u003c').replace('>', '\\u003e').replace('&', '\\u0026')
+        grad_norms_json = json.dumps(grad_norms).replace('<', '\\u003c').replace('>', '\\u003e').replace('&', '\\u0026')
         temps_json = json.dumps(temps).replace('<', '\\u003c').replace('>', '\\u003e').replace('&', '\\u0026')
         
         gallery_items = []
@@ -273,17 +277,21 @@ class DashboardWriter:
                 <div class="metric-value">{steps[-1] if steps else 0}</div>
             </div>
             <div class="metric-card">
-                <div class="metric-title">Latest Loss</div>
-                <div class="metric-value">{losses[-1] if losses else 'N/A'}</div>
+                <div class="metric-title">Mean Reward</div>
+                <div class="metric-value" style="color: #3fb950;">{rewards[-1] if rewards else 0.0:.3f}</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-title">Gradient Norm</div>
+                <div class="metric-value" style="color: #bc8cff;">{grad_norms[-1] if grad_norms else 0.0:.4f}</div>
             </div>
             <div class="metric-card">
                 <div class="metric-title">Current Temperature</div>
-                <div class="metric-value">{temps[-1] if temps else '0.850'}</div>
+                <div class="metric-value" style="color: #f78166;">{temps[-1] if temps else '0.850'}</div>
             </div>
         </div>
 
         <div class="charts-container">
-            <h2 style="margin-top: 0; font-size: 18px;">Training Loss & Temperature Trajectory</h2>
+            <h2 style="margin-top: 0; font-size: 18px;">RL Reward, Gradient & Temperature Trajectory</h2>
             <canvas id="metricsChart" height="90"></canvas>
         </div>
 
@@ -301,10 +309,18 @@ class DashboardWriter:
                 labels: {labels_json},
                 datasets: [
                     {{
-                        label: 'Training Loss',
-                        data: {losses_json},
-                        borderColor: '#58a6ff',
-                        backgroundColor: 'rgba(88, 166, 255, 0.1)',
+                        label: 'Mean Reward',
+                        data: {rewards_json},
+                        borderColor: '#3fb950',
+                        backgroundColor: 'rgba(63, 185, 80, 0.1)',
+                        tension: 0.2,
+                        yAxisID: 'y'
+                    }},
+                    {{
+                        label: 'Gradient Norm',
+                        data: {grad_norms_json},
+                        borderColor: '#bc8cff',
+                        backgroundColor: 'rgba(188, 140, 255, 0.1)',
                         tension: 0.2,
                         yAxisID: 'y'
                     }},
@@ -335,7 +351,7 @@ class DashboardWriter:
                         position: 'left',
                         grid: {{ color: '#21262d' }},
                         ticks: {{ color: '#8b949e' }},
-                        title: {{ display: true, text: 'Loss', color: '#8b949e' }}
+                        title: {{ display: true, text: 'Reward / Grad Norm', color: '#8b949e' }}
                     }},
                     y1: {{
                         type: 'linear',

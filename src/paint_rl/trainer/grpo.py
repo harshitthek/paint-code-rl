@@ -350,6 +350,7 @@ class PaintGRPOTrainer:
             "save_steps": steps,
             "save_strategy": "steps",
             "report_to": "none",
+            "temperature": self.config.generation.temperature if self.config else 0.7,
         }
         
         if self.device.type == "mps":
@@ -496,6 +497,7 @@ class PaintGRPOTrainer:
                 "logging_steps": 1,
                 "save_strategy": "no",
                 "report_to": "none",
+                "temperature": current_temp,
             }
             
             if self.device.type == "mps":
@@ -528,16 +530,29 @@ class PaintGRPOTrainer:
             train_output = self.trainer.train()
             total_steps_done += cycle_steps
             
+            # Extract real RL training metrics from log history
+            log_hist = self.trainer.state.log_history if hasattr(self.trainer, "state") and self.trainer.state else []
+            rewards_list = [entry["reward"] for entry in log_hist if "reward" in entry]
+            grad_norms = [entry["grad_norm"] for entry in log_hist if "grad_norm" in entry]
+            entropies = [entry["entropy"] for entry in log_hist if "entropy" in entry]
+            
+            mean_reward = float(sum(rewards_list) / len(rewards_list)) if rewards_list else 0.0
+            mean_grad_norm = float(sum(grad_norms) / len(grad_norms)) if grad_norms else 0.0
+            mean_entropy = float(sum(entropies) / len(entropies)) if entropies else 0.0
             cycle_loss = getattr(train_output, 'training_loss', 0.0)
+            
             cycle_metric = {
                 "cycle": cycle_num,
                 "steps_done": total_steps_done,
                 "loss": float(cycle_loss) if cycle_loss else 0.0,
+                "reward": round(mean_reward, 4),
+                "grad_norm": round(mean_grad_norm, 4),
+                "entropy": round(mean_entropy, 4),
                 "temperature": float(current_temp),
             }
             all_metrics.append(cycle_metric)
             
-            print(f"\n  [Cycle {cycle_num} Summary] Total Steps: {total_steps_done} | Loss: {cycle_metric['loss']:.4f}")
+            print(f"\n  [Cycle {cycle_num} Summary] Steps: {total_steps_done} | Mean Reward: {mean_reward:.3f} | Grad Norm: {mean_grad_norm:.4f} | Temp: {current_temp:.3f}")
             
             if dashboard_writer:
                 dashboard_writer.update(all_metrics)
