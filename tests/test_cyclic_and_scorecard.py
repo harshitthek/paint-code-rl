@@ -217,7 +217,7 @@ class TestHardwareMaxSaturation:
         adjustments = apply_max_hardware_config(config)
         assert "mps_group_size" in adjustments
         assert "mps_max_new_tokens" in adjustments
-        assert config.training.group_size >= 4
+        assert config.training.group_size >= 2
 
     def test_apply_max_simulated_cuda(self):
         config, _, _ = load_config("local")

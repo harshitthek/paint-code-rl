@@ -232,19 +232,26 @@ def apply_max_hardware_config(config):
     device_type = config.device.type if config else "cpu"
     
     if device_type == "mps":
-        # Apple Silicon: scale based on unified memory
-        if ram_gb >= 32:
-            config.training.group_size = 8
-            config.training.batch_size = 8
-            config.generation.max_new_tokens = 512
-        elif ram_gb >= 16:
+        # Apple Silicon unified memory scaling:
+        # 1.5B float32 model alone requires ~6.16GB.
+        # Forward/backward tensors for B=2 take ~2GB.
+        # Safe memory budget: ~11GB total peak footprint inside 16GB unified RAM.
+        if ram_gb >= 64:
             config.training.group_size = 6
             config.training.batch_size = 6
             config.generation.max_new_tokens = 448
-        else:
+        elif ram_gb >= 32:
             config.training.group_size = 4
             config.training.batch_size = 4
             config.generation.max_new_tokens = 384
+        elif ram_gb >= 16:
+            config.training.group_size = 2
+            config.training.batch_size = 2
+            config.generation.max_new_tokens = 320
+        else:
+            config.training.group_size = 2
+            config.training.batch_size = 2
+            config.generation.max_new_tokens = 256
         adjustments["mps_group_size"] = config.training.group_size
         adjustments["mps_max_new_tokens"] = config.generation.max_new_tokens
         

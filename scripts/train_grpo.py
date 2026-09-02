@@ -11,8 +11,9 @@ import os
 import sys
 import argparse
 
-# Set MPS fallback BEFORE any torch/transformers imports
+# Set MPS fallback and memory allocation flags BEFORE any torch/transformers imports
 os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
+os.environ.setdefault("PYTORCH_MPS_HIGH_WATERMARK_RATIO", "0.0")
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
