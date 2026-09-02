@@ -168,6 +168,39 @@ function draw() {
         assert "function setup()" in code
         assert "function draw()" in code
 
+    def test_code_extractor_with_preload_and_setup(self):
+        """Ensure both preload() and setup() with array loops are cleanly extracted."""
+        raw = """```javascript
+let brush;
+let colors = ['#ffffff', '#000000'];
+function preload() {
+    brush = new p5.Brush();
+    colors.forEach(c => { brush.addColor(c); });
+}
+function setup() {
+    createCanvas(600, 600, WEBGL);
+}
+```"""
+        code = robust_extract_js_code(raw)
+        assert "function preload()" in code
+        assert "function setup()" in code
+        assert "createCanvas(600, 600, WEBGL)" in code
+
+    def test_code_extractor_with_casing_variations_two_pi(self):
+        """Preserve code containing Two_PI, camera.position, and charcol typos."""
+        raw = """```javascript
+function setup() {
+    createCanvas(640, 480, WEBGL);
+    brush.set('charcol', '#334455', 2);
+    camera.position(0, 0, 200);
+    let step = Two_PI / 12;
+}
+```"""
+        code = robust_extract_js_code(raw)
+        assert "camera.position" in code
+        assert "Two_PI" in code
+        assert "createCanvas" in code
+
 
 # ============================================================
 # 4. Multi-Hardware Saturation & VRAM Boundary Tests
