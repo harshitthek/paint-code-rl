@@ -351,6 +351,7 @@ class PaintGRPOTrainer:
             "save_strategy": "steps",
             "report_to": "none",
             "temperature": self.config.generation.temperature if self.config else 0.7,
+            "lr_scheduler_type": "constant",
         }
         
         if self.device.type == "mps":
@@ -498,6 +499,7 @@ class PaintGRPOTrainer:
                 "save_strategy": "no",
                 "report_to": "none",
                 "temperature": current_temp,
+                "lr_scheduler_type": "constant",
             }
             
             if self.device.type == "mps":
