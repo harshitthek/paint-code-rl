@@ -144,7 +144,7 @@ def main():
     # Start renderer
     renderer = RendererService(port=3000)
     print("Starting WebGL renderer daemon...")
-    if not renderer.ensure_started(max_wait_sec=20):
+    if not renderer.restart(max_wait_sec=20):
         print("❌ Failed to start renderer service on port 3000.")
         sys.exit(1)
 

@@ -189,6 +189,11 @@ class RendererService:
 
     def shutdown(self):
         """Cleanly terminate the renderer process and all child Chrome instances."""
+        try:
+            self._session.post(f"{self.base_url}/shutdown", timeout=0.5)
+        except Exception:
+            pass
+
         if self._proc is not None:
             if self._proc.poll() is not None:
                 self._proc = None
@@ -212,3 +217,16 @@ class RendererService:
                     else:
                         self._proc.kill()
             self._proc = None
+
+        try:
+            import platform
+            if platform.system() == "Linux":
+                subprocess.run(["pkill", "-9", "-f", "node.*server.js"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception:
+            pass
+
+    def restart(self, max_wait_sec: int = 20) -> bool:
+        """Force restart the renderer service ensuring fresh code and configuration."""
+        self.shutdown()
+        time.sleep(1)
+        return self.ensure_started(max_wait_sec=max_wait_sec)

@@ -14,6 +14,14 @@ app.get('/health', (req, res) => {
     res.json({ status: 'ok', inflight, jobsProcessed });
 });
 
+app.post('/shutdown', async (req, res) => {
+    res.json({ status: 'shutting_down' });
+    setTimeout(async () => {
+        try { await closeBrowser(); } catch (e) {}
+        process.exit(0);
+    }, 50);
+});
+
 app.post('/render', async (req, res) => {
     if (inflight >= MAX_INFLIGHT) {
         return res.status(429).json({ success: false, error_classification: "RENDERER_OVERLOAD", runtime_error: "Too many concurrent requests" });
