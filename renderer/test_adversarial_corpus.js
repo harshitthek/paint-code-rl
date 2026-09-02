@@ -326,6 +326,25 @@ function draw() {
 }
 `,
         expectSuccess: true
+    },
+    {
+        name: "19. Kaggle Rollout 9: TWO numerical constant in math loop",
+        code: `
+function setup(){
+    createCanvas(640, 480, WEBGL);
+    background(245,243,238);
+    brush.load();
+    brush.scaleBrushes(3);
+    noLoop();
+}
+function draw(){
+    translate(-width/4, -height/4);
+    let step = TWO * PI / 12;
+    brush.set('charcoal', '#334455', TWO);
+    brush.line(0, 0, 50 * Math.cos(step), 50 * Math.sin(step));
+}
+`,
+        expectSuccess: true
     }
 ];
 

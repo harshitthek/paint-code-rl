@@ -511,6 +511,31 @@ async function renderCode(code, seed, runId, options = {}) {
         window.lerp_color = _dummyLerpColor;
         window.Lerp = typeof window.lerp === 'function' ? window.lerp : function(a, b, t) { return a + (b - a) * t; };
 
+        // Numerical constants so unquoted word numbers never throw ReferenceError
+        window.ZERO = 0; window.Zero = 0; window.zero = 0;
+        window.ONE = 1; window.One = 1; window.one = 1;
+        window.TWO = 2; window.Two = 2; window.two = 2;
+        window.THREE = 3; window.Three = 3; window.three = 3;
+        window.FOUR = 4; window.Four = 4; window.four = 4;
+        window.FIVE = 5; window.Five = 5; window.five = 5;
+        window.SIX = 6; window.Six = 6; window.six = 6;
+        window.SEVEN = 7; window.Seven = 7; window.seven = 7;
+        window.EIGHT = 8; window.Eight = 8; window.eight = 8;
+        window.NINE = 9; window.Nine = 9; window.nine = 9;
+        window.TEN = 10; window.Ten = 10; window.ten = 10;
+
+        // Coordinate, delta, and geometric fallbacks
+        window.dx = 0; window.dy = 0; window.dz = 0;
+        window.vx = 0; window.vy = 0; window.vz = 0;
+        window.ax = 0; window.ay = 0; window.az = 0;
+        window.step = 10; window.steps = 10;
+        window.count = 10; window.num = 10; window.total = 10;
+        window.scale = 1; window.scaleFactor = 1;
+        window.rotation = 0; window.rot = 0;
+        window.offset = 0; window.spacing = 10;
+        window.padding = 10; window.margin = 10;
+        window.depth = 100; window.len = 100; window.length = 100;
+
         // Fallback variables so unquoted parameter identifiers never throw ReferenceError
         window.strength = 0.2;
         window.strenght = 0.2;
@@ -588,6 +613,24 @@ async function renderCode(code, seed, runId, options = {}) {
             pi: Math.PI,
         };
         for (const [k, v] of Object.entries(mathConsts)) {
+            window.p5.prototype[k] = v;
+        }
+
+        // Numerical constants on p5 prototype
+        const numConsts = {
+            ZERO: 0, Zero: 0, zero: 0,
+            ONE: 1, One: 1, one: 1,
+            TWO: 2, Two: 2, two: 2,
+            THREE: 3, Three: 3, three: 3,
+            FOUR: 4, Four: 4, four: 4,
+            FIVE: 5, Five: 5, five: 5,
+            SIX: 6, Six: 6, six: 6,
+            SEVEN: 7, Seven: 7, seven: 7,
+            EIGHT: 8, Eight: 8, eight: 8,
+            NINE: 9, Nine: 9, nine: 9,
+            TEN: 10, Ten: 10, ten: 10
+        };
+        for (const [k, v] of Object.entries(numConsts)) {
             window.p5.prototype[k] = v;
         }
 

@@ -60,6 +60,27 @@
                 }
             }
 
+            // Numerical constants so unquoted words never throw ReferenceError
+            const numConsts = {
+                ZERO: 0, Zero: 0, zero: 0,
+                ONE: 1, One: 1, one: 1,
+                TWO: 2, Two: 2, two: 2,
+                THREE: 3, Three: 3, three: 3,
+                FOUR: 4, Four: 4, four: 4,
+                FIVE: 5, Five: 5, five: 5,
+                SIX: 6, Six: 6, six: 6,
+                SEVEN: 7, Seven: 7, seven: 7,
+                EIGHT: 8, Eight: 8, eight: 8,
+                NINE: 9, Nine: 9, nine: 9,
+                TEN: 10, Ten: 10, ten: 10
+            };
+            for (const [k, v] of Object.entries(numConsts)) {
+                window[k] = v;
+                if (typeof p5 !== 'undefined' && p5.prototype) {
+                    p5.prototype[k] = v;
+                }
+            }
+
             // Lighting stubs
             ['ambientLight', 'pointLight', 'directionalLight', 'spotLight', 'lights', 'noLights'].forEach(fn => {
                 if (typeof window[fn] === 'undefined') window[fn] = function() {};
