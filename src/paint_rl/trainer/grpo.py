@@ -334,9 +334,9 @@ class PaintGRPOTrainer:
         print(f"  max_new_tokens={max_new_tokens}")
         print(f"  output_dir={output_dir}")
         
-        prompt_batch_size = 1
         num_gens = group_size
-        grad_accum = max(1, batch_size // group_size) if batch_size > group_size else 1
+        prompt_batch_size = num_gens
+        grad_accum = max(1, batch_size // num_gens)
         
         grpo_kwargs = {
             "output_dir": output_dir,
@@ -482,8 +482,8 @@ class PaintGRPOTrainer:
             print("=" * 60)
             
             self._clear_memory()
-            prompt_batch_size = 1
-            grad_accum = max(1, batch_size // num_gens) if batch_size > num_gens else 1
+            prompt_batch_size = num_gens
+            grad_accum = max(1, batch_size // num_gens)
             
             grpo_kwargs = {
                 "output_dir": output_dir,
