@@ -143,13 +143,26 @@ def main():
         print("❌ Failed to start renderer service on port 3000.")
         sys.exit(1)
 
-    print("\nLoading language model for p5.js synthesis...")
-    from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
-    from paint_rl.models.registry import ModelRegistry
+    # Determine base model and policy device
+    base_model_name = None
+    if adapter_path and os.path.exists(os.path.join(adapter_path, "adapter_config.json")):
+        try:
+            with open(os.path.join(adapter_path, "adapter_config.json"), "r") as f:
+                cfg = json.load(f)
+                base_model_name = cfg.get("base_model_name_or_path")
+        except Exception:
+            pass
 
-    selection = ModelRegistry.select_models(device=device.type)
-    base_model_name = selection.policy_model
-    policy_device = torch.device(selection.policy_device)
+    if not base_model_name:
+        if device.type == "mps":
+            base_model_name = "Qwen/Qwen2.5-Coder-1.5B-Instruct"
+        elif device.type == "cuda":
+            vram_gb = torch.cuda.get_device_properties(0).total_memory / 1e9
+            base_model_name = "Qwen/Qwen2.5-Coder-7B-Instruct" if vram_gb >= 20 else "Qwen/Qwen2.5-Coder-1.5B-Instruct"
+        else:
+            base_model_name = "Qwen/Qwen2.5-Coder-0.5B-Instruct"
+
+    policy_device = device
 
     print(f"Loading base model: {base_model_name} onto {policy_device}...")
     tokenizer = AutoTokenizer.from_pretrained(base_model_name)
