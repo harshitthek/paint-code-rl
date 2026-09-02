@@ -30,9 +30,9 @@ def get_compute_device():
 
 # Maximum safe training parameters per device type
 _MPS_SAFE_LIMITS = {
-    "max_batch_size": 8,
-    "max_group_size": 8,
-    "max_new_tokens": 512,
+    "max_batch_size": 2,
+    "max_group_size": 2,
+    "max_new_tokens": 320,
 }
 
 # Model selection table by device capability
