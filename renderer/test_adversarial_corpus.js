@@ -173,6 +173,87 @@ function setup() {
 `,
         expectSuccess: false,
         expectedErrorClass: "RUNTIME_ERROR"
+    },
+    {
+        name: "11. Kaggle Rollout 1: camera.position & charcol typo",
+        code: `
+function setup(){
+    createCanvas(640, 480, WEBGL);
+    brush.load();
+    brush.scaleBrushes(.5);
+    brush.set('charcol', '#3a6b73', 2);
+    brush.strokeWeight(1);
+    brush.noFill();
+    camera.position(0, 0, 200);
+}
+function draw() {
+    brush.line(0, 0, 100, 100);
+}
+`,
+        expectSuccess: true
+    },
+    {
+        name: "12. Kaggle Rollout 2: [object Arguments] color representation inside draw",
+        code: `
+function setup(){
+    createCanvas(640, 640, WEBGL);
+    background(245,243,238);
+    brush.load();
+    brush.scaleBrushes(3);
+    noLoop();
+}
+function draw(){
+    translate(-width/4, -height/4);
+    brush.fill(color, opacity);
+    brush.rect(0, 0, 100, 100);
+}
+`,
+        expectSuccess: true
+    },
+    {
+        name: "13. Kaggle Rollout 3: Balanced preload() inlining with forEach and addColor",
+        code: `
+let brush;
+let colors = ['#e6e6e6', '#dcdcdc', '#bcbcbc', '#9baabb', '#888888'];
+let angle;
+
+function preload() {
+    brush = new p5.Brush();
+    brush.load();
+    brush.scaleBrushes(3);
+    colors.forEach(color => {
+        brush.addColor(color);
+    });
+}
+function setup() {
+    createCanvas(600, 600, WEBGL);
+    background(240);
+}
+function draw() {
+    brush.set('pen', colors[0], 2);
+    brush.line(0, 0, 150, 150);
+}
+`,
+        expectSuccess: true
+    },
+    {
+        name: "14. Kaggle Rollout 4: Two_PI casing & ambientLight / loadImage",
+        code: `
+function setup(){
+    createCanvas(800, 640, WEBGL);
+    ambientLight(100,100,150);
+    pointLight(255, 255, 0, width/2, height/2, 100);
+    let texture = loadImage("tree_trunk.png");
+    let leaves = loadImage("leaves.png");
+    brush.scaleBrushes(3);
+}
+function draw() {
+    let angle = Two_PI / 8;
+    brush.set('charcoal', '#334455', 2);
+    brush.line(0, 0, 50 * Math.cos(angle), 50 * Math.sin(angle));
+}
+`,
+        expectSuccess: true
     }
 ];
 

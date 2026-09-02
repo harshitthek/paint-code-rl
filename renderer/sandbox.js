@@ -42,6 +42,63 @@ function autoRepairJS(jsCode) {
     return candidate;
 }
 
+function extractAndRemoveFunction(code, funcName) {
+    if (!code) return { code, body: null };
+    const regex = new RegExp(`function\\s+${funcName}\\s*\\([^)]*\\)\\s*\\{`);
+    const match = regex.exec(code);
+    if (!match) return { code, body: null };
+
+    const startIndex = match.index;
+    const bodyStartIndex = startIndex + match[0].length;
+    let depth = 1;
+    let inString = null;
+    let inSingleComment = false;
+    let inMultiComment = false;
+    let i = bodyStartIndex;
+
+    while (i < code.length && depth > 0) {
+        const char = code[i];
+        const nextChar = code[i + 1] || '';
+
+        if (inSingleComment) {
+            if (char === '\n') inSingleComment = false;
+        } else if (inMultiComment) {
+            if (char === '*' && nextChar === '/') {
+                inMultiComment = false;
+                i++;
+            }
+        } else if (inString) {
+            if (char === '\\') {
+                i++; // Skip escaped character
+            } else if (char === inString) {
+                inString = null;
+            }
+        } else {
+            if (char === '/' && nextChar === '/') {
+                inSingleComment = true;
+                i++;
+            } else if (char === '/' && nextChar === '*') {
+                inMultiComment = true;
+                i++;
+            } else if (char === '"' || char === "'" || char === '`') {
+                inString = char;
+            } else if (char === '{') {
+                depth++;
+            } else if (char === '}') {
+                depth--;
+            }
+        }
+        i++;
+    }
+
+    if (depth === 0) {
+        const body = code.substring(bodyStartIndex, i - 1);
+        const newCode = code.substring(0, startIndex) + `// [inlined ${funcName}]\n` + code.substring(i);
+        return { code: newCode, body };
+    }
+    return { code, body: null };
+}
+
 let browser;
 
 async function initBrowser() {
@@ -194,13 +251,21 @@ async function renderCode(code, seed, runId, options = {}) {
 
         // Inline preload() body into setup() so variables (e.g. mountains = [], clouds = []) are initialized
         // without risking premature brush.load() failure before createCanvas()
-        const preloadMatch = safeCode.match(/function\s+preload\s*\(\)\s*\{([\s\S]*?)\}/);
-        if (preloadMatch) {
-            const preloadBody = preloadMatch[1]
+        const extractedPreload = extractAndRemoveFunction(safeCode, 'preload');
+        if (extractedPreload.body) {
+            safeCode = extractedPreload.code;
+            const cleanedPreload = extractedPreload.body
                 .replace(/brush\s*=\s*new[^;\n]+;?/g, '')
-                .replace(/brush\.load\(\);?/g, '');
-            safeCode = safeCode.replace(/function\s+preload\s*\(\)\s*\{[\s\S]*?\}/, '// [inlined preload]');
-            safeCode = safeCode.replace(/(function\s+setup\s*\(\)\s*\{)/, `$1\n  ${preloadBody}\n`);
+                .replace(/brush\.load\(\);?/g, '')
+                .replace(/brush\.scaleBrushes\([^)]*\);?/g, '');
+            if (safeCode.includes("createCanvas")) {
+                safeCode = safeCode.replace(
+                    /(createCanvas\s*\([^)]*\)\s*;?)/,
+                    `$1\n  ${cleanedPreload}\n`
+                );
+            } else {
+                safeCode = safeCode.replace(/(function\s+setup\s*\(\)\s*\{)/, `$1\n  ${cleanedPreload}\n`);
+            }
         }
 
         if (seed !== undefined && seed !== null) {
@@ -214,16 +279,123 @@ async function renderCode(code, seed, runId, options = {}) {
         const autoSignalWrapper = `
 // Intercept createCanvas to setup brush automatically
 (function() {
-    if (typeof window !== 'undefined') {
-        const _dummyCam = function() {};
-        _dummyCam.position = function() {};
-        _dummyCam.lookAt = function() {};
-        if (typeof window.camera === 'function') {
-            window.camera.position = window.camera.position || function() {};
-            window.camera.lookAt = window.camera.lookAt || function() {};
-        } else {
-            window.camera = _dummyCam;
+    function makeOmniProxy(fn) {
+        const handler = {
+            get(target, prop) {
+                if (prop in target) {
+                    const v = target[prop];
+                    return typeof v === 'function' ? v.bind(target) : v;
+                }
+                return makeOmniProxy(function() {});
+            },
+            apply(target, thisArg, args) {
+                try {
+                    if (typeof target === 'function') return target.apply(thisArg, args);
+                } catch(e) {}
+                return makeOmniProxy(function() {});
+            }
+        };
+        return new Proxy(fn || function() {}, handler);
+    }
+
+    const EXACT_CASE_MAP = {
+        'hb': 'HB',
+        '2b': '2B',
+        '2h': '2H',
+        'cpencil': 'cpencil',
+        'pen': 'pen',
+        'rotring': 'rotring',
+        'spray': 'spray',
+        'marker': 'marker',
+        'marker2': 'marker2',
+        'charcoal': 'charcoal',
+        'hatch_brush': 'hatch_brush',
+    };
+    const BRUSH_TYPO_MAP = {
+        'charcol': 'charcoal',
+        'charcole': 'charcoal',
+        'pencil': 'cpencil',
+        'colorpencil': 'cpencil',
+        'color_pencil': 'cpencil',
+        'water_color': 'marker',
+        'watercolor': 'marker',
+        'water': 'marker',
+        'ink': 'pen',
+        'brush': 'charcoal',
+        'default': 'HB',
+        'hatch': 'hatch_brush',
+        'hatching': 'hatch_brush',
+        'airbrush': 'spray',
+        'spraypaint': 'spray',
+    };
+    function normalizeBrushName(name) {
+        if (!name || typeof name !== 'string') return 'charcoal';
+        const lower = name.toLowerCase().trim();
+        const mapped = BRUSH_TYPO_MAP[lower] || lower;
+        return EXACT_CASE_MAP[mapped.toLowerCase()] || 'charcoal';
+    }
+
+    function makeBrushProxy(target) {
+        if (!target) return target;
+        if (typeof target.set === 'function' && !target.__set_patched) {
+            const _origSet = target.set;
+            target.set = function(name, c, ...rest) {
+                if (typeof name === 'function') name = 'charcoal';
+                name = normalizeBrushName(name);
+                if (typeof c === 'function' || !c) c = '#3a6c73';
+                return _origSet.apply(this, [name, c, ...rest]);
+            };
+            target.__set_patched = true;
         }
+        if (typeof target.fill === 'function' && !target.__fill_patched) {
+            const _origFill = target.fill;
+            target.fill = function(c, ...rest) {
+                if (typeof c === 'function' || !c) c = '#1a759f';
+                return _origFill.apply(this, [c, ...rest]);
+            };
+            target.__fill_patched = true;
+        }
+        if (typeof target.bleed === 'function' && typeof target.fillBleed === 'undefined') {
+            target.fillBleed = target.bleed;
+        }
+        if (typeof target.strokeWeight === 'undefined') {
+            target.strokeWeight = function(w) { target.w = w; };
+        }
+        if (typeof target.noFill === 'undefined') {
+            target.noFill = function() {};
+        }
+        return new Proxy(target, {
+            get(t, prop, receiver) {
+                if (prop in t) {
+                    const val = Reflect.get(t, prop, receiver);
+                    return typeof val === 'function' ? val.bind(t) : val;
+                }
+                return function(...args) { return t; };
+            }
+        });
+    }
+
+    if (typeof window !== 'undefined') {
+        let _activeCamera = makeOmniProxy(window.camera || function() {});
+        try {
+            Object.defineProperty(window, 'camera', {
+                get() { return _activeCamera; },
+                set(val) { _activeCamera = makeOmniProxy(val); },
+                configurable: true,
+                enumerable: true
+            });
+        } catch(e) { window.camera = _activeCamera; }
+
+        let _activeBrush = (typeof window.brush !== 'undefined') ? makeBrushProxy(window.brush) : null;
+        try {
+            Object.defineProperty(window, 'brush', {
+                get() { return _activeBrush || {}; },
+                set(val) { _activeBrush = makeBrushProxy(val); },
+                configurable: true,
+                enumerable: true
+            });
+        } catch(e) { window.brush = _activeBrush || {}; }
+
         window.Brush = function() { return window.brush || {}; };
         window.p5 = window.p5 || {};
         window.p5.Brush = function() { return window.brush || {}; };
@@ -235,6 +407,39 @@ async function renderCode(code, seed, runId, options = {}) {
             } catch(e) { return { width: 100, height: 100 }; }
         };
         
+        // Math and casing constants
+        const mathConsts = {
+            Two_PI: Math.PI * 2,
+            TwoPi: Math.PI * 2,
+            two_pi: Math.PI * 2,
+            Two_Pi: Math.PI * 2,
+            TWO_PI: Math.PI * 2,
+            Half_PI: Math.PI / 2,
+            HalfPi: Math.PI / 2,
+            half_pi: Math.PI / 2,
+            Half_Pi: Math.PI / 2,
+            HALF_PI: Math.PI / 2,
+            Quarter_PI: Math.PI / 4,
+            QuarterPi: Math.PI / 4,
+            quarter_pi: Math.PI / 4,
+            Quarter_Pi: Math.PI / 4,
+            QUARTER_PI: Math.PI / 4,
+            TAU: Math.PI * 2,
+            Tau: Math.PI * 2,
+            tau: Math.PI * 2,
+            PI: Math.PI,
+            Pi: Math.PI,
+            pi: Math.PI,
+        };
+        for (const [k, v] of Object.entries(mathConsts)) {
+            window[k] = v;
+        }
+
+        // Lighting stubs
+        ['ambientLight', 'pointLight', 'directionalLight', 'spotLight', 'lights', 'noLights'].forEach(fn => {
+            if (typeof window[fn] === 'undefined') window[fn] = function() {};
+        });
+
         // Fallback variables so unquoted parameter identifiers never throw ReferenceError
         window.strength = 0.2;
         window.strenght = 0.2;
@@ -270,8 +475,56 @@ async function renderCode(code, seed, runId, options = {}) {
         window.center = 'center';
         window.CENTER = 'center';
     }
+
     if (typeof window.p5 !== 'undefined' && window.p5.prototype) {
         window.p5.prototype.Brush = function() { return window.brush || {}; };
+        
+        // Robust color parser that intercepts functions, nulls, and arguments objects
+        const _origP5Color = window.p5.prototype.color;
+        window.p5.prototype.color = function(...args) {
+            if (args.length === 0 || args[0] === undefined || args[0] === null || typeof args[0] === 'function' || (typeof args[0] === 'object' && args[0].toString() === '[object Arguments]')) {
+                return _origP5Color.call(this, '#1a759f');
+            }
+            try {
+                return _origP5Color.apply(this, args);
+            } catch(e) {
+                return _origP5Color.call(this, '#1a759f');
+            }
+        };
+
+        // Math constants on p5 prototype
+        const mathConsts = {
+            Two_PI: Math.PI * 2,
+            TwoPi: Math.PI * 2,
+            two_pi: Math.PI * 2,
+            Two_Pi: Math.PI * 2,
+            TWO_PI: Math.PI * 2,
+            Half_PI: Math.PI / 2,
+            HalfPi: Math.PI / 2,
+            half_pi: Math.PI / 2,
+            Half_Pi: Math.PI / 2,
+            HALF_PI: Math.PI / 2,
+            Quarter_PI: Math.PI / 4,
+            QuarterPi: Math.PI / 4,
+            quarter_pi: Math.PI / 4,
+            Quarter_Pi: Math.PI / 4,
+            QUARTER_PI: Math.PI / 4,
+            TAU: Math.PI * 2,
+            Tau: Math.PI * 2,
+            tau: Math.PI * 2,
+            PI: Math.PI,
+            Pi: Math.PI,
+            pi: Math.PI,
+        };
+        for (const [k, v] of Object.entries(mathConsts)) {
+            window.p5.prototype[k] = v;
+        }
+
+        // Lighting stubs on p5 prototype
+        ['ambientLight', 'pointLight', 'directionalLight', 'spotLight', 'lights', 'noLights'].forEach(fn => {
+            if (typeof window.p5.prototype[fn] === 'undefined') window.p5.prototype[fn] = function() {};
+        });
+
         // Safe loadImage fallback to prevent preload hangs
         window.p5.prototype.loadImage = function(path, success, failure) {
             try {
@@ -293,56 +546,13 @@ async function renderCode(code, seed, runId, options = {}) {
         const _origCreateCanvas2 = window.p5.prototype.createCanvas;
         window.p5.prototype.createCanvas = function(...args) {
             const result = _origCreateCanvas2.apply(this, args);
-            if (typeof window.camera === 'function') {
-                window.camera.position = window.camera.position || function() {};
-                window.camera.lookAt = window.camera.lookAt || function() {};
-            }
-            if (typeof brush !== 'undefined') {
-                if (typeof brush.fill === 'function') {
-                    const _origFill = brush.fill;
-                    brush.fill = function(c, ...rest) {
-                        if (typeof c === 'function' || !c) c = '#1a759f';
-                        return _origFill.apply(this, [c, ...rest]);
-                    };
+            if (typeof window.brush !== 'undefined') {
+                if (typeof window.brush.load === 'function') {
+                    try { window.brush.load(); } catch(e) {}
                 }
-                if (typeof brush.set === 'function') {
-                    const _origSet = brush.set;
-                    brush.set = function(name, c, ...rest) {
-                        if (typeof name === 'function') name = 'charcoal';
-                        if (typeof c === 'function') c = '#3a6c73';
-                        return _origSet.apply(this, [name, c, ...rest]);
-                    };
+                if (typeof window.brush.scaleBrushes === 'function') {
+                    try { window.brush.scaleBrushes(3); } catch(e) {}
                 }
-                if (typeof brush.bleed === 'function' && typeof brush.fillBleed === 'undefined') {
-                    brush.fillBleed = brush.bleed;
-                }
-                if (typeof brush.pushMatrix === 'undefined') {
-                    brush.pushMatrix = function() { if (typeof push === 'function') push(); };
-                    brush.popMatrix = function() { if (typeof pop === 'function') pop(); };
-                }
-                if (typeof brush.setColor === 'undefined') {
-                    brush.setColor = function(c) { if (typeof brush.stroke === 'function') brush.stroke(c); };
-                }
-                if (typeof brush.load === 'function') {
-                    try { brush.load(); } catch(e) {}
-                }
-                if (typeof brush.scaleBrushes === 'function') {
-                    try { brush.scaleBrushes(3); } catch(e) {}
-                }
-                // Proxy fallback for any hallucinated brush methods
-                try {
-                    window.brush = new Proxy(brush, {
-                        get(target, prop, receiver) {
-                            if (prop in target) {
-                                const val = Reflect.get(target, prop, receiver);
-                                return typeof val === 'function' ? val.bind(target) : val;
-                            }
-                            return function(...args) {
-                                return target;
-                            };
-                        }
-                    });
-                } catch(e) {}
             }
             return result;
         };

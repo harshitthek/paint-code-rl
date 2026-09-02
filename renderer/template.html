@@ -27,6 +27,91 @@
                     return c;
                 };
             }
+
+            // Math and casing constants
+            const mathConsts = {
+                Two_PI: Math.PI * 2,
+                TwoPi: Math.PI * 2,
+                two_pi: Math.PI * 2,
+                Two_Pi: Math.PI * 2,
+                TWO_PI: Math.PI * 2,
+                Half_PI: Math.PI / 2,
+                HalfPi: Math.PI / 2,
+                half_pi: Math.PI / 2,
+                Half_Pi: Math.PI / 2,
+                HALF_PI: Math.PI / 2,
+                Quarter_PI: Math.PI / 4,
+                QuarterPi: Math.PI / 4,
+                quarter_pi: Math.PI / 4,
+                Quarter_Pi: Math.PI / 4,
+                QUARTER_PI: Math.PI / 4,
+                TAU: Math.PI * 2,
+                Tau: Math.PI * 2,
+                tau: Math.PI * 2,
+                PI: Math.PI,
+                Pi: Math.PI,
+                pi: Math.PI,
+            };
+            for (const [k, v] of Object.entries(mathConsts)) {
+                window[k] = v;
+                if (typeof p5 !== 'undefined' && p5.prototype) {
+                    p5.prototype[k] = v;
+                }
+            }
+
+            // Lighting stubs
+            ['ambientLight', 'pointLight', 'directionalLight', 'spotLight', 'lights', 'noLights'].forEach(fn => {
+                if (typeof window[fn] === 'undefined') window[fn] = function() {};
+                if (typeof p5 !== 'undefined' && p5.prototype && typeof p5.prototype[fn] === 'undefined') {
+                    p5.prototype[fn] = function() {};
+                }
+            });
+
+            // Robust color parser
+            if (typeof p5 !== 'undefined' && p5.prototype && p5.prototype.color) {
+                const _origP5Color = p5.prototype.color;
+                p5.prototype.color = function(...args) {
+                    if (args.length === 0 || args[0] === undefined || args[0] === null || typeof args[0] === 'function' || (typeof args[0] === 'object' && args[0].toString() === '[object Arguments]')) {
+                        return _origP5Color.call(this, '#1a759f');
+                    }
+                    try {
+                        return _origP5Color.apply(this, args);
+                    } catch(e) {
+                        return _origP5Color.call(this, '#1a759f');
+                    }
+                };
+            }
+
+            // Camera omni proxy
+            function makeOmniProxy(fn) {
+                const handler = {
+                    get(target, prop) {
+                        if (prop in target) {
+                            const v = target[prop];
+                            return typeof v === 'function' ? v.bind(target) : v;
+                        }
+                        return makeOmniProxy(function() {});
+                    },
+                    apply(target, thisArg, args) {
+                        try {
+                            if (typeof target === 'function') return target.apply(thisArg, args);
+                        } catch(e) {}
+                        return makeOmniProxy(function() {});
+                    }
+                };
+                return new Proxy(fn || function() {}, handler);
+            }
+
+            let _activeCamera = makeOmniProxy(window.camera || function() {});
+            try {
+                Object.defineProperty(window, 'camera', {
+                    get() { return _activeCamera; },
+                    set(val) { _activeCamera = makeOmniProxy(val); },
+                    configurable: true,
+                    enumerable: true
+                });
+            } catch(e) { window.camera = _activeCamera; }
+
             if (typeof p5 !== 'undefined' && p5.prototype && p5.prototype.camera) {
                 p5.prototype.camera.position = function() {};
                 p5.prototype.camera.lookAt = function() {};
