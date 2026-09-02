@@ -67,6 +67,27 @@
                 }
             });
 
+            // Function aliases for casing hallucinations (e.g. lERPColor -> lerpColor)
+            const _dummyLerpColor = function(c1, c2, amt) {
+                try {
+                    if (typeof window.lerpColor === 'function') return window.lerpColor(c1, c2, amt);
+                    if (typeof p5 !== 'undefined' && p5.prototype && typeof p5.prototype.lerpColor === 'function') {
+                        return p5.prototype.lerpColor.call(this, c1, c2, amt);
+                    }
+                } catch(e) {}
+                return c1 || '#1a759f';
+            };
+            window.lERPColor = _dummyLerpColor;
+            window.LerpColor = _dummyLerpColor;
+            window.lerp_color = _dummyLerpColor;
+            window.Lerp = typeof window.lerp === 'function' ? window.lerp : function(a, b, t) { return a + (b - a) * t; };
+            if (typeof p5 !== 'undefined' && p5.prototype) {
+                p5.prototype.lERPColor = p5.prototype.lerpColor;
+                p5.prototype.LerpColor = p5.prototype.lerpColor;
+                p5.prototype.lerp_color = p5.prototype.lerpColor;
+                p5.prototype.Lerp = p5.prototype.lerp;
+            }
+
             // Robust color parser
             if (typeof p5 !== 'undefined' && p5.prototype && p5.prototype.color) {
                 const _origP5Color = p5.prototype.color;

@@ -99,6 +99,39 @@ function extractAndRemoveFunction(code, funcName) {
     return { code, body: null };
 }
 
+function hoistSetupVariables(jsCode) {
+    if (!jsCode) return jsCode;
+    const setupMatch = jsCode.match(/(function\s+setup\s*\(\)\s*\{)([\s\S]*?)(\n\})/);
+    if (!setupMatch) return jsCode;
+
+    let setupHeader = setupMatch[1];
+    let setupBody = setupMatch[2];
+    let setupFooter = setupMatch[3];
+
+    // Collect declared variable names in setup
+    let varNames = [];
+    let declRegex = /^[ \t]*(?:let|const|var)\s+([a-zA-Z0-9_$]+)\s*=/gm;
+    let m;
+    while ((m = declRegex.exec(setupBody)) !== null) {
+        if (!['width', 'height', 'brush', 'p5', 'window', 'camera', 'setup', 'draw', 'preload'].includes(m[1])) {
+            varNames.push(m[1]);
+        }
+    }
+
+    if (varNames.length === 0) return jsCode;
+
+    // Convert `let x =` or `const x =` to `window.x = x =`
+    let transformedBody = setupBody.replace(/^[ \t]*(?:let|const|var)\s+([a-zA-Z0-9_$]+)\s*=/gm, (match, varName) => {
+        if (!['width', 'height', 'brush', 'p5', 'window', 'camera', 'setup', 'draw', 'preload'].includes(varName)) {
+            return `  window.${varName} = ${varName} =`;
+        }
+        return match;
+    });
+
+    let topDeclarations = `var ${varNames.join(', ')};\n`;
+    return topDeclarations + jsCode.replace(setupMatch[0], setupHeader + transformedBody + setupFooter);
+}
+
 let browser;
 
 async function initBrowser() {
@@ -235,7 +268,15 @@ async function renderCode(code, seed, runId, options = {}) {
         }
         htmlContent = htmlContent.replace('// SEED_INJECTION_HOOK', seedHook);
 
-        let safeCode = autoRepairJS(code);
+        // Strip ES6 module imports and CommonJS requires so vm/eval never throws Cannot use import statement outside a module
+        let preprocessedCode = code
+            .replace(/^[ \t]*import\s+[\s\S]*?from\s+['"][^'"]+['"];?/gm, '// [stripped import]\n')
+            .replace(/^[ \t]*import\s+['"][^'"]+['"];?/gm, '// [stripped import]\n')
+            .replace(/^[ \t]*import\s+[^;\n]+;?/gm, '// [stripped import]\n')
+            .replace(/^[ \t]*(?:const|let|var)\s+[^=]+=\s*require\([^)]*\);?/gm, '// [stripped require]\n')
+            .replace(/^[ \t]*export\s+(?:default\s+)?/gm, '// [stripped export] ');
+
+        let safeCode = autoRepairJS(preprocessedCode);
         // Heal accidental brush re-declarations (e.g. let brush; or const brush = new p5.Brush())
         safeCode = safeCode.replace(
             /^[ \t]*(?:const|let|var)\s+brush\s*(?:=\s*(?:new\s+(?:p5\.)?Brush\([^)]*\)|brush|window\.brush|[^;\n]+))?;?/gmi,
@@ -267,6 +308,9 @@ async function renderCode(code, seed, runId, options = {}) {
                 safeCode = safeCode.replace(/(function\s+setup\s*\(\)\s*\{)/, `$1\n  ${cleanedPreload}\n`);
             }
         }
+
+        // Hoist setup-scoped variables so they are accessible in draw()
+        safeCode = hoistSetupVariables(safeCode);
 
         if (seed !== undefined && seed !== null) {
             safeCode = safeCode.replace(
@@ -440,6 +484,21 @@ async function renderCode(code, seed, runId, options = {}) {
             if (typeof window[fn] === 'undefined') window[fn] = function() {};
         });
 
+        // Function aliases for casing hallucinations (e.g. lERPColor -> lerpColor)
+        const _dummyLerpColor = function(c1, c2, amt) {
+            try {
+                if (typeof window.lerpColor === 'function') return window.lerpColor(c1, c2, amt);
+                if (typeof p5 !== 'undefined' && p5.prototype && typeof p5.prototype.lerpColor === 'function') {
+                    return p5.prototype.lerpColor.call(this, c1, c2, amt);
+                }
+            } catch(e) {}
+            return c1 || '#1a759f';
+        };
+        window.lERPColor = _dummyLerpColor;
+        window.LerpColor = _dummyLerpColor;
+        window.lerp_color = _dummyLerpColor;
+        window.Lerp = typeof window.lerp === 'function' ? window.lerp : function(a, b, t) { return a + (b - a) * t; };
+
         // Fallback variables so unquoted parameter identifiers never throw ReferenceError
         window.strength = 0.2;
         window.strenght = 0.2;
@@ -524,6 +583,12 @@ async function renderCode(code, seed, runId, options = {}) {
         ['ambientLight', 'pointLight', 'directionalLight', 'spotLight', 'lights', 'noLights'].forEach(fn => {
             if (typeof window.p5.prototype[fn] === 'undefined') window.p5.prototype[fn] = function() {};
         });
+
+        // Function aliases on p5 prototype
+        window.p5.prototype.lERPColor = window.p5.prototype.lerpColor;
+        window.p5.prototype.LerpColor = window.p5.prototype.lerpColor;
+        window.p5.prototype.lerp_color = window.p5.prototype.lerpColor;
+        window.p5.prototype.Lerp = window.p5.prototype.lerp;
 
         // Safe loadImage fallback to prevent preload hangs
         window.p5.prototype.loadImage = function(path, success, failure) {

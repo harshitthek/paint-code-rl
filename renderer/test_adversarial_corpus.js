@@ -254,6 +254,78 @@ function draw() {
 }
 `,
         expectSuccess: true
+    },
+    {
+        name: "15. Kaggle Rollout 5: numMountains scoped inside setup, accessed in draw",
+        code: `
+function setup(){
+    createCanvas(640, 480, WEBGL);
+    brush.load();
+    brush.scaleBrushes(3);
+    let numMountains = 5;
+    let mountainHeight = 200;
+    let mountainWidth = width;
+}
+function draw() {
+    for (let i = 0; i < numMountains; i++) {
+        brush.line(i * 50, 0, i * 50 + 40, mountainHeight);
+    }
+}
+`,
+        expectSuccess: true
+    },
+    {
+        name: "16. Kaggle Rollout 6: import { Brush } from 'p5-brush'",
+        code: `
+import { Brush } from 'p5-brush';
+let brush;
+function setup() {
+    createCanvas(640, 480, WEBGL);
+    brush = new Brush();
+    brush.load();
+    brush.scaleBrushes(3);
+}
+function draw() {
+    brush.set('pen', '#112233', 2);
+    brush.line(0, 0, 100, 100);
+}
+`,
+        expectSuccess: true
+    },
+    {
+        name: "17. Kaggle Rollout 7: lERPColor casing typo",
+        code: `
+function setup(){
+    createCanvas(640, 480, WEBGL);
+    brush.load();
+    brush.scaleBrushes(3);
+}
+function draw() {
+    let c1 = color(255, 0, 0);
+    let c2 = color(0, 0, 255);
+    let blended = lERPColor(c1, c2, 0.5);
+    brush.fill(blended, 100);
+    brush.rect(0, 0, 100, 100);
+}
+`,
+        expectSuccess: true
+    },
+    {
+        name: "18. Kaggle Rollout 8: import * as brush from './p5-brush'",
+        code: `
+import * as brush from './p5-brush';
+function setup() {
+    createCanvas(800, 640, WEBGL);
+    background(240, 240, 180);
+    brush.load();
+    brush.scaleBrushes(3);
+}
+function draw() {
+    brush.set('charcoal', '#334455', 2);
+    brush.line(0, 0, 100, 100);
+}
+`,
+        expectSuccess: true
     }
 ];
 
