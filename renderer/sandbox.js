@@ -1,6 +1,40 @@
 const puppeteer = require('puppeteer');
 const path = require('path');
 const fs = require('fs');
+const vm = require('vm');
+
+function balanceTokens(jsCode) {
+    if (!jsCode) return "";
+    let openP = (jsCode.match(/\(/g) || []).length;
+    let closeP = (jsCode.match(/\)/g) || []).length;
+    if (openP > closeP) jsCode += ")".repeat(openP - closeP) + ";";
+
+    let openB = (jsCode.match(/\{/g) || []).length;
+    let closeB = (jsCode.match(/\}/g) || []).length;
+    if (openB > closeB) jsCode += "\n" + "}".repeat(openB - closeB);
+
+    return jsCode;
+}
+
+function autoRepairJS(jsCode) {
+    if (!jsCode) return jsCode;
+    let candidate = balanceTokens(jsCode);
+    try {
+        new vm.Script(candidate);
+        return candidate;
+    } catch (e) {}
+
+    let lines = jsCode.split("\n");
+    while (lines.length > 2) {
+        lines.pop();
+        let cand = balanceTokens(lines.join("\n"));
+        try {
+            new vm.Script(cand);
+            return cand;
+        } catch (e) {}
+    }
+    return candidate;
+}
 
 let browser;
 
@@ -127,7 +161,7 @@ async function renderCode(code, seed, runId, options = {}) {
         }
         htmlContent = htmlContent.replace('// SEED_INJECTION_HOOK', seedHook);
 
-        let safeCode = code;
+        let safeCode = autoRepairJS(code);
         if (seed !== undefined && seed !== null) {
             safeCode = safeCode.replace(
                 /function\s+setup\s*\(\)\s*\{/,
@@ -144,6 +178,26 @@ async function renderCode(code, seed, runId, options = {}) {
         window.camera.position = window.camera.position || function() {};
         window.camera.lookAt = window.camera.lookAt || function() {};
         window.Brush = window.Brush || function() { return window.brush; };
+        
+        // Fallback variables so unquoted parameter identifiers never throw ReferenceError
+        window.strength = 0.2;
+        window.strenght = 0.2;
+        window.bleed = 0.2;
+        window.opacity = 160;
+        window.alpha = 160;
+        window.density = 1;
+        window.angle = 0;
+        window.radius = 50;
+        window.size = 20;
+        window.speed = 1;
+        window.weight = 2;
+        window.brushSize = 2;
+        window.color = '#1a759f';
+        window.col = '#1a759f';
+        window.x = 300;
+        window.y = 300;
+        window.w = 600;
+        window.h = 600;
     }
     if (typeof window.p5 !== 'undefined') {
         const _origCreateCanvas2 = window.p5.prototype.createCanvas;

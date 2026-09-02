@@ -19,6 +19,16 @@ def _count_structural_braces(code: str) -> tuple[int, int]:
     return cleaned.count("{"), cleaned.count("}")
 
 
+def _count_tokens_outside_literals(code: str) -> tuple[int, int, int, int]:
+    """Count (parens, braces) outside comments and string literals."""
+    cleaned = re.sub(r'//.*$', '', code, flags=re.MULTILINE)
+    cleaned = re.sub(r'/\*[\s\S]*?\*/', '', cleaned)
+    cleaned = re.sub(r'"(?:\\.|[^"\\])*"', '""', cleaned)
+    cleaned = re.sub(r"'(?:\\.|[^'\\])*'", "''", cleaned)
+    cleaned = re.sub(r'`(?:\\.|[^`\\])*`', '``', cleaned)
+    return cleaned.count("("), cleaned.count(")"), cleaned.count("{"), cleaned.count("}")
+
+
 def _sanitize_trailing_truncation(code: str) -> str:
     """Sanitize code that was truncated mid-token or mid-statement by token limits."""
     if not code:
@@ -28,22 +38,32 @@ def _sanitize_trailing_truncation(code: str) -> str:
     if not lines:
         return code
     
-    # Check the last line for obvious truncation (unclosed string literal, trailing dot, unclosed parens)
+    # Strip obvious truncation on trailing line
     last_line = lines[-1].strip()
     if last_line:
-        # Check for odd number of single/double quotes on the last line (unclosed literal like `brush.stroke('#ff3`)
         single_quotes = last_line.count("'") - last_line.count(r"\'")
         double_quotes = last_line.count('"') - last_line.count(r'\"')
+        has_unclosed_quote = (single_quotes % 2 != 0) or (double_quotes % 2 != 0)
+        ends_with_operator = any(last_line.endswith(op) for op in ("(", "[", ",", ".", "+", "-", "*", "/", "=", ":", "=>"))
+        is_partial_decl = last_line in ("let", "const", "var", "function", "if", "for", "while", "else", "try") or last_line.startswith("//")
         
-        if (single_quotes % 2 != 0) or (double_quotes % 2 != 0) or last_line.endswith("(") or last_line.endswith(",") or last_line.endswith("."):
-            # Remove the truncated last line
+        if has_unclosed_quote or ends_with_operator or is_partial_decl:
             lines.pop()
             code = "\n".join(lines).strip()
     
+    # Balance unclosed parentheses
+    open_p, close_p, open_b, close_b = _count_tokens_outside_literals(code)
+    if open_p > close_p:
+        code += (")" * (open_p - close_p)) + ";"
+    
     # Balance unclosed structural curly braces
-    open_braces, close_braces = _count_structural_braces(code)
-    if open_braces > close_braces:
-        code += "\n" + ("}\n" * (open_braces - close_braces))
+    open_p, close_p, open_b, close_b = _count_tokens_outside_literals(code)
+    if open_b > close_b:
+        code += "\n" + ("}\n" * (open_b - close_b))
+    elif close_b > open_b:
+        excess = close_b - open_b
+        for _ in range(excess):
+            code = re.sub(r'\s*\}\s*$', '', code)
         
     return code.strip()
 

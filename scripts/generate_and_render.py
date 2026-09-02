@@ -112,6 +112,10 @@ def main():
                         help="Output directory for rendered PNGs")
     parser.add_argument("--gallery-path", type=str, default="artifacts/gallery.html",
                         help="Output path for HTML showcase gallery")
+    parser.add_argument("--max-new-tokens", type=int, default=550,
+                        help="Maximum generation token budget per artwork (default: 550)")
+    parser.add_argument("--temperature", type=float, default=0.4,
+                        help="Sampling temperature for code generation (default: 0.4)")
     args = parser.parse_args()
 
     print("=" * 80)
@@ -214,13 +218,13 @@ def main():
         text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
         inputs = tokenizer(text, return_tensors="pt").to(policy_device)
         
-        with torch.no_grad():
+        with torch.inference_mode():
             outputs = model.generate(
                 **inputs,
-                max_new_tokens=350,
+                max_new_tokens=args.max_new_tokens,
                 do_sample=True,
                 top_p=0.9,
-                temperature=0.7,
+                temperature=args.temperature,
                 repetition_penalty=1.12,
                 no_repeat_ngram_size=6,
                 pad_token_id=tokenizer.pad_token_id,
@@ -228,6 +232,15 @@ def main():
             )
         gen_text = tokenizer.decode(outputs[0][inputs.input_ids.shape[1]:], skip_special_tokens=True)
         code = robust_extract_js_code(gen_text)
+        
+        # Memory optimization: free intermediate tensors & flush GPU/MPS caches
+        del inputs, outputs
+        import gc
+        gc.collect()
+        if policy_device.type == "mps":
+            torch.mps.empty_cache()
+        elif policy_device.type == "cuda":
+            torch.cuda.empty_cache()
         
         print(f"Generated {len(code)} chars of p5.js code. Submitting to WebGL Sandbox...")
         
@@ -247,6 +260,10 @@ def main():
             status = render_res.get("error_classification", "FAILED")
             err = render_res.get("runtime_error", "Unknown error")
             print(f"❌ Render FAILED ({render_res.get('render_ms', 0)}ms): {status} -> {err}")
+            print("--- Generated Code Preview ---")
+            for line in code.split("\n")[:12]:
+                print(f"  | {line}")
+            print("------------------------------")
             rel_img_path = None
 
         results.append({
