@@ -173,6 +173,15 @@ async function renderCode(code, seed, runId, options = {}) {
         htmlContent = htmlContent.replace('// SEED_INJECTION_HOOK', seedHook);
 
         let safeCode = autoRepairJS(code);
+        // Heal accidental brush re-declarations (e.g. const brush = new p5.Brush())
+        safeCode = safeCode.replace(
+            /^[ \t]*(?:const|let|var)\s+brush\s*=\s*(?:new\s+(?:p5\.)?Brush\([^)]*\)|brush|window\.brush|[^;\n]+);?/gmi,
+            '// [auto-healed brush declaration]\n'
+        );
+
+        // Disarm preload() to prevent hangs on non-existent external image assets
+        safeCode = safeCode.replace(/function\s+preload\s*\(/gi, 'function _unused_preload(');
+
         if (seed !== undefined && seed !== null) {
             safeCode = safeCode.replace(
                 /function\s+setup\s*\(\)\s*\{/,
@@ -188,7 +197,9 @@ async function renderCode(code, seed, runId, options = {}) {
         window.camera = window.camera || function() {};
         window.camera.position = window.camera.position || function() {};
         window.camera.lookAt = window.camera.lookAt || function() {};
-        window.Brush = window.Brush || function() { return window.brush; };
+        window.Brush = function() { return window.brush || {}; };
+        window.p5 = window.p5 || {};
+        window.p5.Brush = function() { return window.brush || {}; };
         
         // Fallback variables so unquoted parameter identifiers never throw ReferenceError
         window.strength = 0.2;
@@ -210,7 +221,19 @@ async function renderCode(code, seed, runId, options = {}) {
         window.w = 600;
         window.h = 600;
     }
-    if (typeof window.p5 !== 'undefined') {
+    if (typeof window.p5 !== 'undefined' && window.p5.prototype) {
+        window.p5.prototype.Brush = function() { return window.brush || {}; };
+        // Safe loadImage fallback to prevent preload hangs
+        const _origLI = window.p5.prototype.loadImage;
+        window.p5.prototype.loadImage = function(path, success, failure) {
+            try {
+                const img = this.createImage(100, 100);
+                if (typeof success === 'function') success(img);
+                return img;
+            } catch(e) {
+                return {};
+            }
+        };
         const _origCreateCanvas2 = window.p5.prototype.createCanvas;
         window.p5.prototype.createCanvas = function(...args) {
             const result = _origCreateCanvas2.apply(this, args);
