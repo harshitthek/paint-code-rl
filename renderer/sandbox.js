@@ -69,19 +69,14 @@ async function initBrowser() {
         args: args
     };
 
-    const candidatePaths = [
-        process.env.PUPPETEER_EXECUTABLE_PATH,
-        '/usr/bin/google-chrome',
-        '/usr/bin/google-chrome-stable',
-        '/usr/bin/chromium-browser',
-        '/usr/bin/chromium'
-    ];
-    for (const p of candidatePaths) {
-        if (p && fs.existsSync(p)) {
-            launchOptions.executablePath = p;
-            break;
-        }
+    if (process.env.PUPPETEER_EXECUTABLE_PATH && fs.existsSync(process.env.PUPPETEER_EXECUTABLE_PATH)) {
+        launchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+    } else if (fs.existsSync('/usr/bin/google-chrome')) {
+        launchOptions.executablePath = '/usr/bin/google-chrome';
+    } else if (fs.existsSync('/usr/bin/google-chrome-stable')) {
+        launchOptions.executablePath = '/usr/bin/google-chrome-stable';
     }
+    // Note: Never use /usr/bin/chromium-browser on Linux as Ubuntu packages it as an unusable snap stub
 
     browser = await puppeteer.launch(launchOptions);
     return browser;
