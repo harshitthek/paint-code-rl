@@ -10,6 +10,17 @@ import os
 import sys
 import json
 import torch
+
+# Neutralize Kaggle's incompatible pre-installed torchao 0.10.0 to prevent PEFT crash
+try:
+    import torchao
+    from packaging import version
+    if version.parse(torchao.__version__) < version.parse("0.16.0"):
+        import sys
+        sys.modules["torchao"] = None
+except Exception:
+    pass
+
 from datasets import Dataset
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 from trl import GRPOTrainer, GRPOConfig
@@ -92,6 +103,16 @@ class PaintGRPOTrainer:
                 print(f"[INFO] Config model '{config_model}' overridden to "
                       f"'{device_model}' for {self.device.type} compatibility")
             return device_model
+        elif self.device.type == "cuda":
+            import torch
+            try:
+                vram_gb = torch.cuda.get_device_properties(0).total_memory / 1e9
+            except Exception:
+                vram_gb = 8.0
+            if vram_gb < 20.0 and config_model and config_model != device_model:
+                print(f"[INFO] Config model '{config_model}' overridden to "
+                      f"'{device_model}' for CUDA ({vram_gb:.1f} GB VRAM < 20 GB) compatibility")
+                return device_model
         
         return config_model or device_model
 

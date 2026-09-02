@@ -78,14 +78,24 @@ class RendererService:
             kwargs = {}
             if hasattr(os, "setsid"):
                 kwargs["preexec_fn"] = os.setsid
+
+            import shutil
+            import platform
+            cmd = ["node", "server.js"]
+            if platform.system() == "Linux" and shutil.which("xvfb-run"):
+                cmd = ["xvfb-run", "-a", "node", "server.js"]
                 
-            # DEVNULL prevents OS pipe buffer exhaustion deadlock during long runs
+            log_dir = os.path.join(self._repo_root, "artifacts", "logs")
+            os.makedirs(log_dir, exist_ok=True)
+            self._log_file_path = os.path.join(log_dir, "renderer.log")
+            self._log_file = open(self._log_file_path, "a", encoding="utf-8")
+
             self._proc = subprocess.Popen(
-                ["node", "server.js"],
+                cmd,
                 cwd=renderer_dir,
                 env=env,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stdout=self._log_file,
+                stderr=self._log_file,
                 text=True,
                 **kwargs
             )
@@ -99,6 +109,16 @@ class RendererService:
         while time.time() - start_t < max_wait_sec:
             if self._proc.poll() is not None:
                 print(f"[ERROR] Node.js renderer process exited with code {self._proc.returncode}!")
+                try:
+                    if os.path.exists(self._log_file_path):
+                        with open(self._log_file_path, "r", encoding="utf-8", errors="replace") as lf:
+                            lines = lf.readlines()
+                            if lines:
+                                print("[Renderer Log Output]:")
+                                for l in lines[-10:]:
+                                    print(f"   {l.rstrip()}")
+                except Exception:
+                    pass
                 self._proc = None
                 return False
                 
