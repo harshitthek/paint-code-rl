@@ -119,6 +119,17 @@ def upload_to_huggingface(checkpoint_dir: str, repo_id: str, token: str = None):
     resolved_token = token or os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")
     api = HfApi(token=resolved_token)
 
+    # Auto-resolve username from token if placeholder is used
+    if "YOUR_HF_USERNAME" in repo_id or "/" not in repo_id:
+        try:
+            username = api.whoami().get("name")
+            if username:
+                model_name = repo_id.split("/")[-1] if "/" in repo_id else repo_id
+                repo_id = f"{username}/{model_name}"
+                print(f"[INFO] Auto-resolved Hugging Face repository to: {repo_id}")
+        except Exception:
+            pass
+
     try:
         create_repo(repo_id=repo_id, token=resolved_token, repo_type="model", exist_ok=True)
         api.upload_folder(
