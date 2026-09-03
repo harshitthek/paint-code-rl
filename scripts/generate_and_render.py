@@ -152,6 +152,19 @@ def main():
             sys.exit(1)
     elif args.checkpoint:
         adapter_path = os.path.abspath(args.checkpoint)
+        # If path doesn't exist, check if user has a packaged zip archive in /kaggle/working
+        if not os.path.exists(adapter_path):
+            import glob, zipfile
+            zips = sorted(glob.glob("/kaggle/working/paint_rl_artifacts_*.zip") + glob.glob("paint_rl_artifacts_*.zip"), reverse=True)
+            if zips:
+                print(f"[INFO] Found packaged artifacts archive: {zips[0]}. Automatically extracting checkpoints...")
+                try:
+                    with zipfile.ZipFile(zips[0], "r") as zf:
+                        zf.extractall(REPO_ROOT)
+                    print("✅ Checkpoint extracted from archive successfully!")
+                except Exception as ze:
+                    print(f"[WARN] Could not extract archive: {ze}")
+
         # Auto-resolve checkpoint subdirectories (e.g. checkpoint-25, final_checkpoint, etc.)
         if os.path.isdir(adapter_path) and not os.path.exists(os.path.join(adapter_path, "adapter_config.json")):
             subdirs = []
