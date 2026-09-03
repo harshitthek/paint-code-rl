@@ -101,7 +101,7 @@ def build_gallery_html(renders: list, output_path: str):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate and render p5.js generative art with trained models")
+    parser = argparse.ArgumentParser(description="Generate and render p5.js generative art with trained models", allow_abbrev=False)
     parser.add_argument("--checkpoint", type=str, default=None,
                         help="Path to local trained LoRA checkpoint directory")
     parser.add_argument("--kagglehub", type=str, default=None,
