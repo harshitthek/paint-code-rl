@@ -178,6 +178,26 @@ def main():
             else:
                 print(f"[WARN] No adapter_config.json found inside {adapter_path}")
         print(f"[Checkpoint] Using local checkpoint: {adapter_path}")
+    else:
+        # Default policy: auto-detect local checkpoint if present, else auto-load official HF repo
+        default_local = os.path.join(REPO_ROOT, "artifacts", "checkpoints")
+        subdirs = []
+        if os.path.exists(default_local):
+            for root, dirs, files in os.walk(default_local):
+                if "adapter_config.json" in files:
+                    subdirs.append(root)
+        if subdirs:
+            subdirs.sort(key=lambda s: os.path.getmtime(s), reverse=True)
+            adapter_path = subdirs[0]
+            print(f"[Checkpoint] Auto-detected local trained checkpoint: {adapter_path}")
+        else:
+            print("\n[HuggingFace] Auto-downloading trained model from: HarshittheK/paint-code-rl-lora...")
+            try:
+                from huggingface_hub import snapshot_download
+                adapter_path = snapshot_download(repo_id="HarshittheK/paint-code-rl-lora")
+                print(f"[HuggingFace] Trained model downloaded to: {adapter_path}")
+            except Exception as e:
+                print(f"[WARN] Could not download from Hugging Face: {e}")
 
     # Start renderer
     renderer = RendererService(port=3000)
