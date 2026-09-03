@@ -1,19 +1,20 @@
 # Test Status & Verification Report
 
-**Total Test Count:** 117 / 117 Passed (100% Green)
+**Total Test Count:** 143 / 143 Passed (100% Green)
 
 ---
 
-## 1. Python Pytest Suite (`pytest tests/ -v`) — 78/78 Passed
+## 1. Python Pytest Suite (`pytest tests/ -v`) — 104/104 Passed
 
 | Test Module | Tests | Status | Description |
 | :--- | :--- | :--- | :--- |
 | `tests/test_code_extractor_and_prompting.py` | 8 | `PASSED` | Markdown fence, thinking tags, raw setup extraction, dataset conversational formatting |
-| `tests/test_cyclic_and_scorecard.py` | 14 | `PASSED` | Laplacian variance, tiny image edge cases, anti-cheat, scorecards, `--max` simulation, temperature annealing, dashboard XSS escaping |
+| `tests/test_cyclic_and_scorecard.py` | 15 | `PASSED` | Laplacian variance, directional anisotropy anti-barcode filter, tiny image edge cases, anti-cheat, scorecards |
 | `tests/test_mps_integration.py` | 14 | `PASSED` | Apple Silicon Metal & MPS device detection, memory-safe batch limits, model resolution |
 | `tests/test_rewards.py` | 36 | `PASSED` | 5-tier visual reward matrix, cache operations, model registry, judge providers, telemetry |
 | `tests/test_soup_integration.py` | 3 | `PASSED` | Preflight, reward validation, async rollout |
 | `tests/test_hardening.py` | 3 | `PASSED` | Checkpoint validation, cache integrity, config schema |
+| `tests/test_tight_hardening.py` | 25 | `PASSED` | Floating-point numerical guarantees, bounded rewards, fail-closed components |
 
 ---
 

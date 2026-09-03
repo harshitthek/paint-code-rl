@@ -90,6 +90,41 @@ class TestLaplacianAndCritiques:
             if os.path.exists(path):
                 os.remove(path)
 
+    def test_visual_richness_anti_barcode_filter(self):
+        """1D parallel line barcodes must trigger barcode_detected and receive heavy penalty."""
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
+            barcode_path = f.name
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
+            isotropic_path = f.name
+        try:
+            # 1. Barcode image: vertical black and white lines (extreme anisotropy)
+            barcode = np.zeros((120, 120, 3), dtype=np.uint8)
+            barcode[:, ::4] = 255
+            Image.fromarray(barcode).save(barcode_path)
+
+            res_barcode = calculate_visual_richness(barcode_path)
+            assert res_barcode["barcode_detected"] is True
+            assert res_barcode["anisotropy_ratio"] > 4.5
+            assert "[CHEAT DETECTED]" in res_barcode["critique"]
+            assert res_barcode["richness_score"] < 0.20
+
+            # 2. Isotropic organic image: 2D radial gradient / circle (balanced gradients)
+            y, x = np.ogrid[-60:60, -60:60]
+            dist = np.sqrt(x*x + y*y)
+            circle = np.clip(255 - dist * 4, 0, 255).astype(np.uint8)
+            organic = np.stack([circle, circle // 2, circle // 3], axis=-1)
+            Image.fromarray(organic).save(isotropic_path)
+
+            res_organic = calculate_visual_richness(isotropic_path)
+            assert res_organic["barcode_detected"] is False
+            assert res_organic["anisotropy_ratio"] < 3.5
+            assert "[CHEAT DETECTED]" not in res_organic["critique"]
+        finally:
+            if os.path.exists(barcode_path):
+                os.remove(barcode_path)
+            if os.path.exists(isotropic_path):
+                os.remove(isotropic_path)
+
     def test_brush_utilization_critique_good(self):
         code = """
         function setup() {

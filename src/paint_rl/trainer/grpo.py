@@ -196,7 +196,22 @@ class PaintGRPOTrainer:
 
     def build_reward_functions(self):
         """Build multi-tier reward functions for GRPO training."""
-        from paint_rl.rewards.aesthetic import calculate_visual_richness, calculate_brush_utilization
+        from paint_rl.rewards.aesthetic import calculate_visual_richness, calculate_brush_utilization, CLIPAestheticScorer
+
+        # Lazy initialize CLIP multimodal prompt alignment scorer
+        clip_scorer = None
+        try:
+            clip_device = "cpu"
+            if torch.cuda.is_available() and torch.cuda.device_count() > 1:
+                clip_device = "cuda:1"
+            elif torch.cuda.is_available():
+                clip_device = "cuda:0"
+            elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+                clip_device = "mps"
+            clip_scorer = CLIPAestheticScorer(device=clip_device)
+            print(f"[PaintGRPOTrainer] Activated CLIP Semantic Alignment Scorer on {clip_device}")
+        except Exception as ce:
+            print(f"[PaintGRPOTrainer] CLIP Semantic Scorer optional fallback ({ce})")
 
         def structural_syntax_reward(prompts, completions, **kwargs):
             rewards = []
@@ -246,20 +261,42 @@ class PaintGRPOTrainer:
                 try:
                     if res.get("success") and res.get("image_path"):
                         richness_meta = calculate_visual_richness(res["image_path"])
+                        p_txt = batch_items[i].get("prompt", "") if i < len(batch_items) else ""
+                        c_txt = batch_items[i].get("code", "") if i < len(batch_items) else ""
+
                         if richness_meta.get("is_blank"):
                             r = 0.05
+                            scorecard = richness_meta.get("critique", "[CRITIQUE] Canvas is empty")
                         else:
                             richness_score = richness_meta.get("richness_score", 0.0)
-                            r = round(min(1.0, 0.35 + 0.65 * richness_score), 3)
+                            
+                            # Semantic CLIP Image-Text Alignment
+                            clip_sim = None
+                            if clip_scorer is not None:
+                                try:
+                                    clean_p = p_txt.replace("Create generative art in p5.js:", "").strip()
+                                    clip_sim = clip_scorer.score_prompt_alignment(res["image_path"], clean_p)
+                                except Exception:
+                                    clip_sim = None
+
+                            if clip_sim is not None:
+                                r = round(min(1.0, 0.15 + 0.45 * richness_score + 0.40 * clip_sim), 3)
+                                scorecard = f"{richness_meta.get('critique', '')} | [CLIP Match: {clip_sim:.2f}]"
+                            else:
+                                r = round(min(1.0, 0.35 + 0.65 * richness_score), 3)
+                                scorecard = richness_meta.get("critique", "")
+
+                            # Barcode / 1D striping penalty
+                            if richness_meta.get("barcode_detected"):
+                                r = round(max(0.05, r * 0.15), 3)
+
                         rewards.append(r)
                         if getattr(self, "_active_dashboard_writer", None):
-                            p_txt = batch_items[i].get("prompt", "") if i < len(batch_items) else ""
-                            c_txt = batch_items[i].get("code", "") if i < len(batch_items) else ""
                             self._active_dashboard_writer.add_sample(
                                 prompt=p_txt,
                                 code=c_txt,
                                 image_path=res.get("image_path"),
-                                scorecard=richness_meta.get("critique", ""),
+                                scorecard=scorecard,
                                 reward=r,
                                 step=getattr(self, "_current_step", 0)
                             )

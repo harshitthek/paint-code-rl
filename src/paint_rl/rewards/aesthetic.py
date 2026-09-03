@@ -306,7 +306,7 @@ def calculate_visual_richness(image_path: str) -> Dict[str, Any]:
         # Color diversity score: 1 color = 0.1, 5+ colors = 0.8, 10+ colors = 1.0
         color_score = min(1.0, max(0.1, color_count / 10.0))
 
-        # 4. Laplacian Edge Variance (measures texture sharpness and structural detail)
+        # 4. Laplacian Edge Variance & Directional Gradient Anisotropy
         gray = np.mean(arr, axis=-1)
         if gray.shape[0] >= 3 and gray.shape[1] >= 3:
             laplacian = (
@@ -314,16 +314,35 @@ def calculate_visual_richness(image_path: str) -> Dict[str, Any]:
                 - 4.0 * gray[1:-1, 1:-1]
             )
             edge_variance = float(np.var(laplacian)) if laplacian.size > 0 else 0.0
+
+            # Directional Gradient Anisotropy (Anti-Barcode / Anti-Striping Filter)
+            # Parallel 1D stripes/barcodes have high gradient std along one axis and near-zero along the other.
+            # Natural 2D artworks distribute gradients across both axes.
+            grad_x = np.abs(gray[:, 1:] - gray[:, :-1])
+            grad_y = np.abs(gray[1:, :] - gray[:-1, :])
+            std_gx = float(np.std(grad_x)) if grad_x.size > 0 else 0.0
+            std_gy = float(np.std(grad_y)) if grad_y.size > 0 else 0.0
+            anisotropy_ratio = max(std_gx, std_gy) / (min(std_gx, std_gy) + 1e-4)
         else:
             edge_variance = 0.0
+            anisotropy_ratio = 1.0
+
         # Normalize: low edge variance (< 50) = flat, high (> 500) = rich texture
         edge_score = min(1.0, max(0.0, (edge_variance - 50.0) / 450.0))
 
         # Standard deviation score: std 4.0 -> 0.0, std 35.0+ -> 1.0
         std_score = min(1.0, max(0.0, (pixel_std - 4.0) / 30.0))
 
-        # Composite visual richness (now includes edge sharpness)
+        # Composite visual richness
         richness = 0.30 * coverage_score + 0.25 * std_score + 0.20 * color_score + 0.25 * edge_score
+
+        # Barcode penalty: severely discount 1D parallel line patterns
+        barcode_detected = False
+        if anisotropy_ratio > 4.5 and edge_variance > 80.0:
+            barcode_detected = True
+            penalty = max(0.10, 1.0 - (anisotropy_ratio - 4.5) * 0.15)
+            richness *= penalty
+
         richness_score = max(0.0, min(1.0, float(richness)))
 
         # Build diagnostic critique string
@@ -349,12 +368,17 @@ def calculate_visual_richness(image_path: str) -> Dict[str, Any]:
         else:
             critiques.append("[GOOD] Decent structural detail (edge variance {:.0f})".format(edge_variance))
 
+        if barcode_detected:
+            critiques.append(f"[CHEAT DETECTED] 1D barcode/striping pattern (anisotropy ratio {anisotropy_ratio:.1f})")
+
         return {
             "richness_score": round(richness_score, 4),
             "pixel_std": round(pixel_std, 2),
             "coverage_ratio": round(coverage_ratio, 4),
             "color_count": int(color_count),
             "edge_variance": round(edge_variance, 2),
+            "anisotropy_ratio": round(anisotropy_ratio, 2),
+            "barcode_detected": barcode_detected,
             "is_blank": False,
             "critique": " | ".join(critiques),
         }
