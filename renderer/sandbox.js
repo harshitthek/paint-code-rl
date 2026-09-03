@@ -150,6 +150,10 @@ async function initBrowser() {
         '--disable-dev-shm-usage',
         '--enable-webgl',
         '--allow-file-access-from-files',
+        '--window-size=800,800',
+        '--disable-background-timer-throttling',
+        '--disable-renderer-backgrounding',
+        '--disable-backgrounding-occluded-windows',
     ];
 
     // Platform-specific WebGL backend selection
@@ -200,6 +204,7 @@ async function renderCode(code, seed, runId, options = {}) {
     const b = await initBrowser();
     const page = await b.newPage();
     page.setDefaultTimeout(timeouts.page_load);
+    await page.setViewport({ width: 800, height: 800, deviceScaleFactor: 1 });
     
     await page.setRequestInterception(true);
     const rendererDir = path.resolve(__dirname);

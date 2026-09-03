@@ -142,8 +142,9 @@ class RendererService:
             if resp.status_code == 429:
                 return {"success": False, "error_classification": "RENDERER_OVERLOAD", "runtime_error": "Backpressure applied"}
             resp.raise_for_status()
-            return resp.json()
-        except requests.exceptions.ConnectionError:
+        except requests.exceptions.ReadTimeout:
+            return {"success": False, "error_classification": "TIMEOUT", "runtime_error": f"Renderer HTTP socket read timed out after {self.timeout}s"}
+        except (requests.exceptions.ConnectionError, requests.exceptions.ConnectTimeout):
             # Attempt one automatic restart if connection was dropped
             if self.ensure_started(max_wait_sec=5):
                 try:

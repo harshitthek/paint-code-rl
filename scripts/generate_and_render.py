@@ -305,6 +305,15 @@ def main():
             img_out_path = os.path.join(args.output_dir, img_filename)
             rel_img_path = os.path.relpath(img_out_path, os.path.dirname(os.path.abspath(args.gallery_path)))
             
+            if not (render_res.get("success") and render_res.get("image_path")):
+                print(f"🔄 Retrying Artwork {idx+1} with sanitized 600x600 canvas...")
+                import re
+                sanitized_code = re.sub(r'createCanvas\s*\([^)]*\)', 'createCanvas(600, 600, WEBGL)', code)
+                retry_res = renderer.render(sanitized_code, seed=42 + idx, prompt=p)
+                if retry_res.get("success") and retry_res.get("image_path"):
+                    render_res = retry_res
+                    code = sanitized_code
+
             if render_res.get("success") and render_res.get("image_path"):
                 shutil.copy(render_res["image_path"], img_out_path)
                 print(f"✅ Render SUCCESS ({render_res.get('render_ms', 0)}ms): Saved to {img_out_path}")
@@ -369,6 +378,15 @@ def main():
             img_out_path = os.path.join(args.output_dir, img_filename)
             rel_img_path = os.path.relpath(img_out_path, os.path.dirname(os.path.abspath(args.gallery_path)))
             
+            if not (render_res.get("success") and render_res.get("image_path")):
+                print(f"🔄 Retrying Artwork {i+1} with sanitized 600x600 canvas...")
+                import re
+                sanitized_code = re.sub(r'createCanvas\s*\([^)]*\)', 'createCanvas(600, 600, WEBGL)', code)
+                retry_res = renderer.render(sanitized_code, seed=42 + i, prompt=p)
+                if retry_res.get("success") and retry_res.get("image_path"):
+                    render_res = retry_res
+                    code = sanitized_code
+
             if render_res.get("success") and render_res.get("image_path"):
                 shutil.copy(render_res["image_path"], img_out_path)
                 print(f"✅ Render SUCCESS ({render_res.get('render_ms', 0)}ms): Saved to {img_out_path}")
