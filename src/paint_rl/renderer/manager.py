@@ -220,14 +220,38 @@ class RendererService:
             except Exception:
                 return [{"success": False, "error_classification": "BATCH_HTTP_ERROR", "runtime_error": str(e)} for _ in items]
 
-    def shutdown(self):
-        """Cleanly terminate the renderer process and all child Chrome instances."""
-        try:
+    def shutdown(self) -> bool:
+        """Cleanly terminate the renderer process and all child Chrome instances.
+        
+        Returns:
+            bool: True if shutdown succeeded or server was already down; False if shutdown failed.
+        """
+        # For externally managed renderers (_proc is None), use the environment token.
+        # For self-managed subprocesses (_proc is not None), use self.shutdown_token.
+        token = os.environ.get("RENDERER_SHUTDOWN_TOKEN", "") if self._proc is None else getattr(self, "shutdown_token", "")
+        if not token:
             token = getattr(self, "shutdown_token", "") or os.environ.get("RENDERER_SHUTDOWN_TOKEN", "")
+
+        shutdown_successful = True
+        try:
             headers = {"X-Renderer-Token": token}
-            self._session.post(f"{self.base_url}/shutdown", headers=headers, timeout=0.5)
-        except Exception:
+            resp = self._session.post(
+                f"{self.base_url}/shutdown",
+                headers=headers,
+                timeout=1.0,
+                allow_redirects=False
+            )
+            if resp.status_code == 401:
+                print("[ERROR] Renderer shutdown rejected: 401 Unauthorized (invalid X-Renderer-Token)")
+                shutdown_successful = False
+            elif resp.status_code != 200:
+                shutdown_successful = False
+        except requests.exceptions.ConnectionError:
+            # Server is not running, already shut down
             pass
+        except Exception:
+            if self.is_healthy():
+                shutdown_successful = False
 
         if hasattr(self, "_log_file") and self._log_file and not self._log_file.closed:
             try:
@@ -239,7 +263,7 @@ class RendererService:
         if self._proc is not None:
             if self._proc.poll() is not None:
                 self._proc = None
-                return
+                return True
             try:
                 if hasattr(os, "killpg") and hasattr(os, "getpgid") and self._proc.poll() is None:
                     try:
@@ -260,8 +284,23 @@ class RendererService:
                         self._proc.kill()
             self._proc = None
 
+        # Verify externally managed service has actually stopped
+        if shutdown_successful and self.is_healthy():
+            start_t = time.time()
+            while time.time() - start_t < 2.0:
+                if not self.is_healthy():
+                    break
+                time.sleep(0.2)
+            if self.is_healthy():
+                shutdown_successful = False
+
+        return shutdown_successful
+
     def restart(self, max_wait_sec: int = 20) -> bool:
         """Force restart the renderer service ensuring fresh code and configuration."""
-        self.shutdown()
+        shutdown_ok = self.shutdown()
+        if not shutdown_ok and self._proc is None and self.is_healthy():
+            print("[ERROR] Cannot restart externally managed renderer: shutdown request failed (server remains alive).")
+            return False
         time.sleep(1)
         return self.ensure_started(max_wait_sec=max_wait_sec)

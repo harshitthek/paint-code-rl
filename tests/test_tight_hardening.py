@@ -271,3 +271,49 @@ class TestRendererFaultTolerance:
             res = dead_service.render("function setup() {}")
             assert res["success"] is False
             assert res["error_classification"] == "RENDERER_UNAVAILABLE"
+
+    def test_shutdown_external_renderer_uses_env_token_and_disables_redirects(self):
+        """Shutdown for externally managed renderer (_proc is None) must use env token and allow_redirects=False."""
+        from paint_rl.renderer.manager import RendererService
+        service = RendererService(port=3000)
+        service._proc = None
+
+        mock_post = MagicMock()
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_post.return_value = mock_resp
+
+        with patch.dict(os.environ, {"RENDERER_SHUTDOWN_TOKEN": "external_secret_token_abc"}):
+            with patch.object(service._session, "post", mock_post):
+                with patch.object(service, "is_healthy", return_value=False):
+                    res = service.shutdown()
+                    assert res is True
+                    mock_post.assert_called_once()
+                    _, kwargs = mock_post.call_args
+                    assert kwargs["allow_redirects"] is False
+                    assert kwargs["headers"]["X-Renderer-Token"] == "external_secret_token_abc"
+
+    def test_shutdown_returns_false_on_401_unauthorized(self):
+        """Shutdown must return False and treat 401 response as failure."""
+        from paint_rl.renderer.manager import RendererService
+        service = RendererService(port=3000)
+        service._proc = None
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 401
+
+        with patch.object(service._session, "post", return_value=mock_resp):
+            with patch.object(service, "is_healthy", return_value=True):
+                res = service.shutdown()
+                assert res is False
+
+    def test_restart_fails_when_external_renderer_remains_active_after_shutdown_failure(self):
+        """Restart must return False when external renderer remains alive after failed shutdown."""
+        from paint_rl.renderer.manager import RendererService
+        service = RendererService(port=3000)
+        service._proc = None
+
+        with patch.object(service, "shutdown", return_value=False):
+            with patch.object(service, "is_healthy", return_value=True):
+                res = service.restart()
+                assert res is False

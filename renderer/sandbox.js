@@ -771,14 +771,16 @@ setTimeout(function() {
         try {
             await page.goto(fileUrl, { waitUntil: 'domcontentloaded', timeout: timeouts.page_load });
         } catch (e) {
-            error_classification = 'TIMEOUT';
+            if (e instanceof puppeteer.TimeoutError || (e && e.name === 'TimeoutError')) {
+                error_classification = 'TIMEOUT';
+            }
             throw e;
         }
         
         try {
             await page.waitForFunction('window.renderComplete === true', { timeout: timeouts.code_execution + 500 });
         } catch(e) {
-            if (error_classification === 'SUCCESS') {
+            if (error_classification === 'SUCCESS' && (e instanceof puppeteer.TimeoutError || (e && e.name === 'TimeoutError'))) {
                 error_classification = 'TIMEOUT';
             }
             throw e;
@@ -857,9 +859,14 @@ setTimeout(function() {
             }
         } catch (e) {}
         try {
-            const closePromise = page.close().catch(() => {});
-            const closeTimeout = new Promise(resolve => setTimeout(resolve, 1500));
-            await Promise.race([closePromise, closeTimeout]);
+            const closePromise = page.close().then(() => false).catch(() => false);
+            const closeTimeout = new Promise(resolve => setTimeout(() => resolve(true), 1500));
+            const timedOut = await Promise.race([closePromise, closeTimeout]);
+            if (timedOut) {
+                // Page failed to close within timeout (e.g. unresponsive script / infinite loop)
+                // Recycle browser process to avoid leaking hung tabs
+                await closeBrowser();
+            }
         } catch (e) {}
     }
 }

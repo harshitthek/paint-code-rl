@@ -83,7 +83,7 @@ A robust, minimal Node.js Express server to handle Puppeteer.
 
 > [!NOTE]
 > **Active Renderer Contract:**
-> The active production renderer in `renderer/server.js` and `src/paint_rl/renderer/manager.py` expands on this with `POST /render-batch` for concurrent Puppeteer browser page execution and token-protected `POST /shutdown` (`RENDERER_SHUTDOWN_TOKEN`). Both filesystem rendering and Base64 streaming are supported.
+> The active production renderer in `renderer/server.js` and `src/paint_rl/renderer/manager.py` expands on this with `POST /render_batch` for concurrent Puppeteer browser page execution and token-protected `POST /shutdown` (`RENDERER_SHUTDOWN_TOKEN`). Both filesystem rendering and Base64 streaming are supported.
 
 **Implementation Requirements:**
 *   Maintain a persistent browser context to avoid 2-second cold starts.

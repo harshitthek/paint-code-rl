@@ -33,8 +33,14 @@ if [ ! -d "renderer/node_modules" ]; then
 fi
 
 # 4. Start Renderer Daemon in background
-echo "🚀 Starting Metal-accelerated WebGL Renderer daemon on port 3000..."
-export RENDERER_SHUTDOWN_TOKEN=${RENDERER_SHUTDOWN_TOKEN:-$(head -c 16 /dev/urandom 2>/dev/null | xxd -p 2>/dev/null || echo "m4_session_token_12345")}
+if [ -z "$RENDERER_SHUTDOWN_TOKEN" ]; then
+    SECURE_TOKEN=$(python3 -c "import secrets; print(secrets.token_hex(16))" 2>/dev/null || openssl rand -hex 16 2>/dev/null || (head -c 16 /dev/urandom 2>/dev/null | xxd -p 2>/dev/null))
+    if [ -z "$SECURE_TOKEN" ]; then
+        echo "❌ Error: Failed to securely generate RENDERER_SHUTDOWN_TOKEN. Set RENDERER_SHUTDOWN_TOKEN in environment."
+        exit 1
+    fi
+    export RENDERER_SHUTDOWN_TOKEN="$SECURE_TOKEN"
+fi
 node renderer/server.js &
 RENDERER_PID=$!
 trap "kill $RENDERER_PID 2>/dev/null || true" EXIT
