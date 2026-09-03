@@ -11,10 +11,11 @@ STATUS:
 Phase-0 Research Prototype — Production Hardened & Multi-Signal Shaped
 
 Test Coverage:
-96/96 TESTS PASSING (100% GREEN)
-  - 78 Python Unit, Integration, Edge & Telemetry Tests (pytest)
+143/143 TESTS PASSING (100% GREEN)
+  - 104 Python Unit, Integration, Hardening & Telemetry Tests (pytest)
   - 8 Node.js Sandbox Security Smoke Tests (npm test)
-  - 10 WebGL / p5.brush Visual Corpus Tests (node test_corpus.js)
+  - 10 WebGL / p5.brush Visual Corpus Tests (node renderer/test_corpus.js)
+  - 21 WebGL Adversarial Stress Tests (node renderer/test_adversarial_corpus.js)
 
 Hardware Targets:
   - Apple Silicon M4 (16GB+): Physical MPS & Metal WebGL validation verified
