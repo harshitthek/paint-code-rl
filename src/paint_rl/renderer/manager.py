@@ -69,6 +69,18 @@ class RendererService:
             print(f"[WARN] Cannot find renderer server script at {server_js}")
             return False
 
+        # Auto-install npm packages if node_modules is missing or wiped
+        node_modules_dir = os.path.join(renderer_dir, "node_modules")
+        if not os.path.exists(node_modules_dir) or not os.path.exists(os.path.join(node_modules_dir, "express")):
+            import shutil
+            print("📦 renderer/node_modules missing. Auto-installing npm dependencies...")
+            npm_bin = shutil.which("npm") or "/usr/local/bin/npm"
+            try:
+                subprocess.run([npm_bin, "install", "--no-audit", "--no-fund"], cwd=renderer_dir, check=True)
+                print("✅ npm dependencies installed successfully!")
+            except Exception as ne:
+                print(f"[WARN] Automatic npm install failed: {ne}")
+
         print(f"Starting Node.js WebGL renderer daemon on port {self.port}...")
         env = os.environ.copy()
         env["PORT"] = str(self.port)
