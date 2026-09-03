@@ -116,6 +116,8 @@ def main():
                         help="Maximum generation token budget per artwork (default: 550)")
     parser.add_argument("--temperature", type=float, default=0.4,
                         help="Sampling temperature for code generation (default: 0.4)")
+    parser.add_argument("--max", action="store_true",
+                        help="Enable MAX power mode: parallel batched generation, multi-threaded rendering, and max GPU utilization")
     args = parser.parse_args()
 
     print("=" * 80)
@@ -234,15 +236,29 @@ def main():
         except Exception:
             pass
 
-    for i, p in enumerate(prompts):
-        print(f"\n--- Generating Artwork {i+1}/{len(prompts)}: '{p}' ---")
-        messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": f"Create generative art in p5.js: {p}"}
+    if args.max:
+        print("\n⚡ [MAX POWER MODE ACTIVATED]")
+        print("   • Multi-GPU Tensor Sharding Enabled")
+        print("   • Batched Parallel Generation Across All GPUs")
+        print("   • Concurrent Multi-Core WebGL Sandbox Rendering")
+        if torch.cuda.is_available():
+            torch.backends.cuda.matmul.allow_tf32 = True
+            torch.backends.cudnn.allow_tf32 = True
+            torch.backends.cudnn.benchmark = True
+
+    if args.max and len(prompts) > 1:
+        print(f"\n🚀 Running Batched Parallel Generation on {len(prompts)} prompts simultaneously...")
+        tokenizer.padding_side = "left"
+        batch_texts = [
+            tokenizer.apply_chat_template(
+                [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": f"Create generative art in p5.js: {p}"}],
+                tokenize=False,
+                add_generation_prompt=True
+            )
+            for p in prompts
         ]
-        text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
         target_device = model.device if hasattr(model, "device") else policy_device
-        inputs = tokenizer(text, return_tensors="pt").to(target_device)
+        inputs = tokenizer(batch_texts, return_tensors="pt", padding=True).to(target_device)
         
         with torch.inference_mode():
             outputs = model.generate(
@@ -256,10 +272,12 @@ def main():
                 pad_token_id=tokenizer.pad_token_id,
                 eos_token_id=tokenizer.eos_token_id,
             )
-        gen_text = tokenizer.decode(outputs[0][inputs.input_ids.shape[1]:], skip_special_tokens=True)
-        code = robust_extract_js_code(gen_text)
         
-        # Memory optimization: free intermediate tensors & flush GPU/MPS caches
+        codes = []
+        for i in range(len(prompts)):
+            gen_text = tokenizer.decode(outputs[i][inputs.input_ids.shape[1]:], skip_special_tokens=True)
+            codes.append(robust_extract_js_code(gen_text))
+            
         del inputs, outputs
         import gc
         gc.collect()
@@ -267,40 +285,114 @@ def main():
             torch.mps.empty_cache()
         elif policy_device.type == "cuda":
             torch.cuda.empty_cache()
-        
-        print(f"Generated {len(code)} chars of p5.js code. Submitting to WebGL Sandbox...")
-        
-        # Render via Node.js WebGL Sandbox
-        render_res = renderer.render(code, seed=42 + i, prompt=p)
-        
-        img_filename = f"render_{i+1}.png"
-        img_out_path = os.path.join(args.output_dir, img_filename)
-        rel_img_path = os.path.relpath(img_out_path, os.path.dirname(os.path.abspath(args.gallery_path)))
-        
-        if render_res.get("success") and render_res.get("image_path"):
-            shutil.copy(render_res["image_path"], img_out_path)
-            print(f"✅ Render SUCCESS ({render_res.get('render_ms', 0)}ms): Saved to {img_out_path}")
-            status = "SUCCESS"
-            err = None
-        else:
-            status = render_res.get("error_classification", "FAILED")
-            err = render_res.get("runtime_error", "Unknown error")
-            print(f"❌ Render FAILED ({render_res.get('render_ms', 0)}ms): {status} -> {err}")
-            print("--- Generated Code Preview ---")
-            for line in code.split("\n")[:12]:
-                print(f"  | {line}")
-            print("------------------------------")
-            rel_img_path = None
+            
+        print(f"Generated {len(codes)} artworks simultaneously. Dispatching concurrent renders...")
+        from concurrent.futures import ThreadPoolExecutor
 
-        results.append({
-            "prompt": p,
-            "code": code,
-            "rel_image_path": rel_img_path,
-            "status": status,
-            "error": err,
-            "render_ms": render_res.get("render_ms", 0),
-            "seed": 42 + i
-        })
+        def render_worker(item):
+            idx, p, code = item
+            print(f"Submitting Artwork {idx+1}/{len(prompts)} to WebGL Sandbox...")
+            render_res = renderer.render(code, seed=42 + idx, prompt=p)
+            return idx, p, code, render_res
+
+        workers = min(len(prompts), os.cpu_count() or 4)
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            rendered_items = list(executor.map(render_worker, [(i, prompts[i], codes[i]) for i in range(len(prompts))]))
+            
+        rendered_items.sort(key=lambda x: x[0])
+        for idx, p, code, render_res in rendered_items:
+            img_filename = f"render_{idx+1}.png"
+            img_out_path = os.path.join(args.output_dir, img_filename)
+            rel_img_path = os.path.relpath(img_out_path, os.path.dirname(os.path.abspath(args.gallery_path)))
+            
+            if render_res.get("success") and render_res.get("image_path"):
+                shutil.copy(render_res["image_path"], img_out_path)
+                print(f"✅ Render SUCCESS ({render_res.get('render_ms', 0)}ms): Saved to {img_out_path}")
+                status = "SUCCESS"
+                err = None
+            else:
+                status = render_res.get("error_classification", "FAILED")
+                err = render_res.get("runtime_error", "Unknown error")
+                print(f"❌ Render FAILED ({render_res.get('render_ms', 0)}ms): {status} -> {err}")
+                rel_img_path = None
+
+            results.append({
+                "prompt": p,
+                "code": code,
+                "rel_image_path": rel_img_path,
+                "status": status,
+                "error": err,
+                "render_ms": render_res.get("render_ms", 0),
+                "seed": 42 + idx
+            })
+    else:
+        for i, p in enumerate(prompts):
+            print(f"\n--- Generating Artwork {i+1}/{len(prompts)}: '{p}' ---")
+            messages = [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": f"Create generative art in p5.js: {p}"}
+            ]
+            text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+            target_device = model.device if hasattr(model, "device") else policy_device
+            inputs = tokenizer(text, return_tensors="pt").to(target_device)
+            
+            with torch.inference_mode():
+                outputs = model.generate(
+                    **inputs,
+                    max_new_tokens=args.max_new_tokens,
+                    do_sample=True,
+                    top_p=0.9,
+                    temperature=args.temperature,
+                    repetition_penalty=1.12,
+                    no_repeat_ngram_size=6,
+                    pad_token_id=tokenizer.pad_token_id,
+                    eos_token_id=tokenizer.eos_token_id,
+                )
+            gen_text = tokenizer.decode(outputs[0][inputs.input_ids.shape[1]:], skip_special_tokens=True)
+            code = robust_extract_js_code(gen_text)
+            
+            # Memory optimization: free intermediate tensors & flush GPU/MPS caches
+            del inputs, outputs
+            import gc
+            gc.collect()
+            if policy_device.type == "mps":
+                torch.mps.empty_cache()
+            elif policy_device.type == "cuda":
+                torch.cuda.empty_cache()
+            
+            print(f"Generated {len(code)} chars of p5.js code. Submitting to WebGL Sandbox...")
+            
+            # Render via Node.js WebGL Sandbox
+            render_res = renderer.render(code, seed=42 + i, prompt=p)
+            
+            img_filename = f"render_{i+1}.png"
+            img_out_path = os.path.join(args.output_dir, img_filename)
+            rel_img_path = os.path.relpath(img_out_path, os.path.dirname(os.path.abspath(args.gallery_path)))
+            
+            if render_res.get("success") and render_res.get("image_path"):
+                shutil.copy(render_res["image_path"], img_out_path)
+                print(f"✅ Render SUCCESS ({render_res.get('render_ms', 0)}ms): Saved to {img_out_path}")
+                status = "SUCCESS"
+                err = None
+            else:
+                status = render_res.get("error_classification", "FAILED")
+                err = render_res.get("runtime_error", "Unknown error")
+                print(f"❌ Render FAILED ({render_res.get('render_ms', 0)}ms): {status} -> {err}")
+                print("--- Generated Code Preview ---")
+                for line in code.split("\n")[:12]:
+                    print(f"  | {line}")
+                print("------------------------------")
+                rel_img_path = None
+
+            results.append({
+                "prompt": p,
+                "code": code,
+                "rel_image_path": rel_img_path,
+                "status": status,
+                "error": err,
+                "render_ms": render_res.get("render_ms", 0),
+                "seed": 42 + i
+            })
 
     build_gallery_html(results, args.gallery_path)
     
