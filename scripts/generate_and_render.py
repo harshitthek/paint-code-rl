@@ -152,6 +152,18 @@ def main():
             sys.exit(1)
     elif args.checkpoint:
         adapter_path = os.path.abspath(args.checkpoint)
+        # Auto-resolve checkpoint subdirectories (e.g. checkpoint-25, final_checkpoint, etc.)
+        if os.path.isdir(adapter_path) and not os.path.exists(os.path.join(adapter_path, "adapter_config.json")):
+            subdirs = []
+            for root, dirs, files in os.walk(adapter_path):
+                if "adapter_config.json" in files:
+                    subdirs.append(root)
+            if subdirs:
+                subdirs.sort(key=lambda s: os.path.getmtime(s), reverse=True)
+                adapter_path = subdirs[0]
+                print(f"[Checkpoint] Auto-resolved to latest checkpoint subdirectory: {adapter_path}")
+            else:
+                print(f"[WARN] No adapter_config.json found inside {adapter_path}")
         print(f"[Checkpoint] Using local checkpoint: {adapter_path}")
 
     # Start renderer
