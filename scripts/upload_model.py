@@ -154,6 +154,19 @@ def main():
 
     checkpoint_dir = os.path.abspath(args.checkpoint_dir)
     if not os.path.exists(checkpoint_dir):
+        # Check if user has a packaged zip archive in /kaggle/working
+        import glob, zipfile
+        zips = sorted(glob.glob("/kaggle/working/paint_rl_artifacts_*.zip") + glob.glob("paint_rl_artifacts_*.zip"), reverse=True)
+        if zips:
+            print(f"[INFO] Found packaged artifacts archive: {zips[0]}. Automatically extracting checkpoints...")
+            try:
+                with zipfile.ZipFile(zips[0], "r") as zf:
+                    zf.extractall(REPO_ROOT)
+                print("✅ Checkpoint extracted from archive successfully!")
+            except Exception as ze:
+                print(f"[WARN] Could not extract archive: {ze}")
+
+    if not os.path.exists(checkpoint_dir):
         print(f"[ERROR] Checkpoint directory not found at: {checkpoint_dir}")
         sys.exit(1)
 
