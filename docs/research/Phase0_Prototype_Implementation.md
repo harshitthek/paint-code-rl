@@ -6,7 +6,7 @@ The goal of this specification is strictly to build the end-to-end infrastructur
 
 ## 1. Exact Phase-0 Scope
 
-*   **Model:** `Qwen/Qwen2.5-Coder-7B-Instruct`
+*   **Model:** `Qwen/Qwen2.5-Coder-1.5B-Instruct` (default for FREE/LOCAL/MPS, scalable to 7B in PAID)
 *   **LoRA Config:** rank=32, alpha=64, target_modules=["q_proj", "v_proj"] (OUR PROTOTYPE CHOICE)
 *   **Prompt Dataset:** 50 highly distinct prompts (e.g., "draw a red circle", "draw a green tree", "draw a blue river"). Held-out validation set: 10 prompts.
 *   **Group Size ($G$):** 4 (OUR PROTOTYPE CHOICE - scaled down for infrastructure testing)

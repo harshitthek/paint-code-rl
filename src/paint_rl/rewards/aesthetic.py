@@ -210,7 +210,10 @@ class HPSv3Scorer(AestheticScorer):
             raise RuntimeError(f"Image file not found: {image_path}")
         try:
             rewards = self._inferencer.reward([prompt or "generative art"], image_paths=[image_path])
-            return float(rewards[0][0].item())
+            raw_val = float(rewards[0][0].item())
+            import math
+            norm_val = 1.0 / (1.0 + math.exp(-raw_val))
+            return max(0.0, min(1.0, float(norm_val)))
         except Exception as e:
             raise RuntimeError(f"HPSv3 scoring failed: {e}")
 
@@ -376,7 +379,13 @@ def calculate_brush_utilization(code: str) -> Dict[str, Any]:
     - Trivial code hack: code shorter than 120 chars -> Zero reward!
     """
     if not code or not isinstance(code, str):
-        return {"brush_score": 0.0, "features_used": [], "has_cheat": True}
+        return {
+            "brush_score": 0.0,
+            "features_used": [],
+            "has_cheat": True,
+            "cheat_reason": "INVALID_OR_EMPTY_CODE",
+            "critique": "[FAIL] Code is empty or invalid"
+        }
 
     clean_code = code.strip()
 

@@ -7,6 +7,9 @@ import atexit
 import signal
 
 
+import secrets
+
+
 class RendererService:
     """Manages the Node.js/Puppeteer WebGL rendering service subprocess."""
     
@@ -14,7 +17,9 @@ class RendererService:
         self.port = port
         self.timeout = timeout
         self.base_url = f"http://127.0.0.1:{self.port}"
+        self.shutdown_token = secrets.token_hex(16)
         self._proc = None
+        self._log_file = None
         self._session = requests.Session()
         adapter = requests.adapters.HTTPAdapter(pool_connections=10, pool_maxsize=20, max_retries=2)
         self._session.mount("http://", adapter)
@@ -84,6 +89,7 @@ class RendererService:
         print(f"Starting Node.js WebGL renderer daemon on port {self.port}...")
         env = os.environ.copy()
         env["PORT"] = str(self.port)
+        env["RENDERER_SHUTDOWN_TOKEN"] = self.shutdown_token
         
         try:
             # Create a dedicated process group on POSIX systems to allow clean subtree termination
@@ -206,6 +212,10 @@ class RendererService:
                     r = self.render(item.get("code", ""), seed=item.get("seed", 42), prompt=item.get("prompt", ""))
                     r["batch_index"] = idx
                     results.append(r)
+                    if not r.get("success") and r.get("error_classification") == "RENDERER_UNAVAILABLE":
+                        for rem_idx in range(idx + 1, len(items)):
+                            results.append({"success": False, "error_classification": "RENDERER_UNAVAILABLE", "batch_index": rem_idx})
+                        break
                 return results
             except Exception:
                 return [{"success": False, "error_classification": "BATCH_HTTP_ERROR", "runtime_error": str(e)} for _ in items]
@@ -213,9 +223,17 @@ class RendererService:
     def shutdown(self):
         """Cleanly terminate the renderer process and all child Chrome instances."""
         try:
-            self._session.post(f"{self.base_url}/shutdown", timeout=0.5)
+            headers = {"X-Renderer-Token": getattr(self, "shutdown_token", "")}
+            self._session.post(f"{self.base_url}/shutdown", headers=headers, timeout=0.5)
         except Exception:
             pass
+
+        if hasattr(self, "_log_file") and self._log_file and not self._log_file.closed:
+            try:
+                self._log_file.close()
+            except Exception:
+                pass
+            self._log_file = None
 
         if self._proc is not None:
             if self._proc.poll() is not None:
@@ -224,7 +242,7 @@ class RendererService:
             try:
                 if hasattr(os, "killpg") and hasattr(os, "getpgid") and self._proc.poll() is None:
                     try:
-                        os.killpg(os.getpgid(self._proc.pid), signal.SIGTERM)
+                        os.killpg(os.path.getpgid(self._proc.pid) if hasattr(os.path, "getpgid") else os.getpgid(self._proc.pid), signal.SIGTERM)
                     except ProcessLookupError:
                         pass
                 else:
@@ -240,13 +258,6 @@ class RendererService:
                     else:
                         self._proc.kill()
             self._proc = None
-
-        try:
-            import platform
-            if platform.system() == "Linux":
-                subprocess.run(["pkill", "-9", "-f", "node.*server.js"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        except Exception:
-            pass
 
     def restart(self, max_wait_sec: int = 20) -> bool:
         """Force restart the renderer service ensuring fresh code and configuration."""

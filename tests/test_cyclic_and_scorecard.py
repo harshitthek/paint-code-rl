@@ -74,8 +74,9 @@ class TestLaplacianAndCritiques:
             arr[10:90, 10:90] = [200, 100, 50]
             arr[20:40, 20:80] = [50, 150, 220]
             arr[50:80, 30:60] = [220, 20, 120]
-            noise = np.random.randint(0, 30, (100, 100, 3), dtype=np.uint8)
-            arr = np.clip(arr + noise, 0, 255)
+            rng = np.random.default_rng(42)
+            noise = rng.integers(0, 30, (100, 100, 3), dtype=np.int32)
+            arr = np.clip(arr.astype(np.int32) + noise, 0, 255).astype(np.uint8)
             
             img = Image.fromarray(arr)
             img.save(path)
@@ -158,7 +159,8 @@ class TestDiagnosticScorecard:
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
             path = f.name
         try:
-            arr = np.random.randint(50, 200, (100, 100, 3), dtype=np.uint8)
+            rng = np.random.default_rng(12345)
+            arr = rng.integers(50, 200, (100, 100, 3), dtype=np.uint8)
             Image.fromarray(arr).save(path)
             
             comp_res = composer.compute(

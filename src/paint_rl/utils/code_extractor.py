@@ -6,19 +6,6 @@ trailing unclosed string literals, and missing function closure braces.
 import re
 
 
-def _count_structural_braces(code: str) -> tuple[int, int]:
-    """Count structural curly braces outside comments and string literals."""
-    # Remove single-line comments
-    cleaned = re.sub(r'//.*$', '', code, flags=re.MULTILINE)
-    # Remove multi-line comments
-    cleaned = re.sub(r'/\*[\s\S]*?\*/', '', cleaned)
-    # Remove strings: double-quoted, single-quoted, and template literals
-    cleaned = re.sub(r'"(?:\\.|[^"\\])*"', '""', cleaned)
-    cleaned = re.sub(r"'(?:\\.|[^'\\])*'", "''", cleaned)
-    cleaned = re.sub(r'`(?:\\.|[^`\\])*`', '``', cleaned)
-    return cleaned.count("{"), cleaned.count("}")
-
-
 def _count_tokens_outside_literals(code: str) -> tuple[int, int, int, int]:
     """Count (parens, braces) outside comments and string literals."""
     cleaned = re.sub(r'//.*$', '', code, flags=re.MULTILINE)
@@ -51,13 +38,12 @@ def _sanitize_trailing_truncation(code: str) -> str:
             lines.pop()
             code = "\n".join(lines).strip()
     
-    # Balance unclosed parentheses
+    # Balance unclosed parentheses and structural curly braces
     open_p, close_p, open_b, close_b = _count_tokens_outside_literals(code)
     if open_p > close_p:
         code += (")" * (open_p - close_p)) + ";"
     
-    # Balance unclosed structural curly braces
-    open_p, close_p, open_b, close_b = _count_tokens_outside_literals(code)
+    # Balance unclosed structural curly braces (appending ')' does not change brace counts)
     if open_b > close_b:
         code += "\n" + ("}\n" * (open_b - close_b))
     elif close_b > open_b:

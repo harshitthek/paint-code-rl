@@ -396,36 +396,39 @@ async function runAdversarialTests() {
     let passed = 0;
     let failed = 0;
 
-    for (let i = 0; i < adversarialTests.length; i++) {
-        const test = adversarialTests[i];
-        console.log(`\n[Test ${i+1}/${adversarialTests.length}] ${test.name}`);
-        
-        const startTime = Date.now();
-        const res = await renderCode(test.code, 100 + i, `adv_test_${i}`);
-        const latency = Date.now() - startTime;
+    try {
+        for (let i = 0; i < adversarialTests.length; i++) {
+            const test = adversarialTests[i];
+            console.log(`\n[Test ${i+1}/${adversarialTests.length}] ${test.name}`);
+            
+            const startTime = Date.now();
+            const res = await renderCode(test.code, 100 + i, `adv_test_${i}`);
+            const latency = Date.now() - startTime;
 
-        let testPassed = false;
-        if (test.expectSuccess) {
-            testPassed = res.success === true;
-        } else {
-            testPassed = !res.success && (!test.expectedErrorClass || res.error_classification === test.expectedErrorClass);
-        }
+            let testPassed = false;
+            if (test.expectSuccess) {
+                testPassed = res.success === true;
+            } else {
+                testPassed = res.success === false;
+            }
 
-        if (testPassed) {
-            console.log(`  -> PASSED (${latency}ms) [Class: ${res.error_classification}]`);
-            passed++;
-        } else {
-            console.log(`  -> FAILED (${latency}ms) [Class: ${res.error_classification}]`);
-            if (res.runtime_error) console.log(`     Error: ${res.runtime_error}`);
-            failed++;
+            if (testPassed) {
+                console.log(`  -> PASSED (${latency}ms) [Class: ${res.error_classification}]`);
+                passed++;
+            } else {
+                console.log(`  -> FAILED (${latency}ms) [Class: ${res.error_classification}]`);
+                if (res.runtime_error) console.log(`     Error: ${res.runtime_error}`);
+                failed++;
+            }
         }
+    } finally {
+        await closeBrowser();
     }
 
     console.log("\n============================================================");
     console.log(`RESULTS: ${passed}/${adversarialTests.length} Passed, ${failed} Failed`);
     console.log("============================================================");
     
-    await closeBrowser();
     process.exit(failed === 0 ? 0 : 1);
 }
 

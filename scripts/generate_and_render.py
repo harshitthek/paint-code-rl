@@ -24,7 +24,8 @@ from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.append(os.path.join(REPO_ROOT, 'src'))
 from paint_rl.renderer.manager import RendererService
 from paint_rl.config.prompts import SYSTEM_PROMPT
 from paint_rl.utils.code_extractor import robust_extract_js_code
@@ -257,13 +258,18 @@ def main():
             attn_implementation="sdpa"
         ).to(policy_device)
 
-    if adapter_path and os.path.exists(adapter_path):
+    has_adapter_config = adapter_path and os.path.exists(os.path.join(adapter_path, "adapter_config.json"))
+    if has_adapter_config:
         print(f"Applying trained LoRA adapter from: {adapter_path}...")
-        if use_multi_gpu:
-            model = PeftModel.from_pretrained(base_model, adapter_path, device_map="auto")
-        else:
-            model = PeftModel.from_pretrained(base_model, adapter_path).to(policy_device)
-        print("✅ Trained LoRA policy loaded successfully!")
+        try:
+            if use_multi_gpu:
+                model = PeftModel.from_pretrained(base_model, adapter_path, device_map="auto")
+            else:
+                model = PeftModel.from_pretrained(base_model, adapter_path).to(policy_device)
+            print("✅ Trained LoRA policy loaded successfully!")
+        except Exception as e:
+            print(f"[WARN] Failed to load LoRA adapter ({e}). Falling back to base model.")
+            model = base_model
     else:
         model = base_model
         print("ℹ️ Using base untuned model (zero-shot).")
@@ -392,6 +398,8 @@ def main():
                 "seed": 42 + idx
             })
     else:
+        if args.max:
+            print("\nℹ️ [--max] Single prompt provided; proceeding with sequential generation pipeline.")
         for i, p in enumerate(prompts):
             print(f"\n--- Generating Artwork {i+1}/{len(prompts)}: '{p}' ---")
             messages = [

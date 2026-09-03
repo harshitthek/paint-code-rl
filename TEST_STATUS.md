@@ -1,6 +1,6 @@
 # Test Status & Verification Report
 
-**Total Test Count:** 96 / 96 Passed (100% Green)
+**Total Test Count:** 117 / 117 Passed (100% Green)
 
 ---
 
@@ -26,7 +26,7 @@
 | **Missing Canvas Extraction** | `NO_CANVAS` | `PASSED` | Fails gracefully if canvas is removed |
 | **Runtime Crash Handling** | `RUNTIME_ERROR` | `PASSED` | Catches uncaught runtime exceptions |
 | **Network Exfiltration Prevention** | `SUCCESS` | `PASSED` | Request interception blocks outbound `fetch()` / `WebSocket` |
-| **Signal Tampering Resilience** | `SUCCESS` | `PASSED` | Non-writable `Object.defineProperty` prevents overriding signal |
+| **Signal Tampering Resilience** | `SUCCESS` | `PASSED` | Configurable property and proxy get-trap verification |
 | **Directory Traversal in `runId`** | `SUCCESS` | `PASSED` | Sanitizes `runId` preventing path escaping |
 | **Canvas Removal & Tampering** | `NO_CANVAS` | `PASSED` | Detects hidden/tampered canvas elements |
 
@@ -46,3 +46,12 @@
 | 8. p5.brush primitive | Natural media brush stroke | `PASSED` |
 | 9. Multi-operation p5.brush | Watercolor wash, bleed, and lines | `PASSED` |
 | 10. Broken code | Graceful error classification | `PASSED` |
+
+---
+
+## 4. Node.js Adversarial Stress Suite (`node test_adversarial_corpus.js`) — 21/21 Passed
+
+| Category | Count | Status | Description |
+| :--- | :--- | :--- | :--- |
+| Synthetic Syntax & Runtime Traps | 10 | `PASSED` | Fake constructors, shadowed globals, unquoted params, proxy traps, forced errors |
+| Real Kaggle Rollout Edge Cases | 11 | `PASSED` | ES imports, DOMContentLoaded wrappers, math constants, camera calls, color arguments |

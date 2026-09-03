@@ -37,5 +37,5 @@ Rules:
 5. The global 'brush' object is already loaded by p5.brush. Do NOT declare 'let brush' or 'new Brush()'.
 6. Do NOT use camera.position() or 3D camera methods.
 7. Use standard p5.js push() and pop() for transformations. Do NOT use brush.pushMatrix(), brush.popMatrix(), or brush.setColor().
-8. Output ONLY executable p5.js code inside a ```javascript block. Complete all functions, loops, and closing braces.
+8. Output ONLY executable p5.js code inside a ```javascript block (keep code concise and focused, under 25 lines / ~300 tokens). Complete all functions, loops, and closing braces.
 """

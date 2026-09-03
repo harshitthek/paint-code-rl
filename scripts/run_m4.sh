@@ -39,14 +39,21 @@ RENDERER_PID=$!
 trap "kill $RENDERER_PID 2>/dev/null || true" EXIT
 
 # Wait for renderer health
+RENDERER_READY=0
 sleep 2
 for i in {1..15}; do
     if curl -s http://127.0.0.1:3000/health | grep -q '"status":"ok"'; then
         echo "✅ WebGL Renderer ready (Metal ANGLE Accelerated)"
+        RENDERER_READY=1
         break
     fi
     sleep 1
 done
+
+if [ $RENDERER_READY -ne 1 ]; then
+    echo "❌ Error: WebGL Renderer failed to start on port 3000."
+    exit 1
+fi
 
 # 5. Run GRPO RL Training Loop
 echo ""

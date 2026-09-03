@@ -6,9 +6,7 @@ The scientific core (`Policy -> Rollout -> Render -> Reward -> GRPO`) runs ident
 
 ### `FREE`
 *   **Hardware**: Kaggle T4x2 / Colab T4.
-*   **Safety Limits**: `max_external_api_cost = 0`, `max_gpu_cost = 0`.
-*   **Components**: Open-weight policy (`Qwen2.5-Coder-7B-Instruct` heavily quantized/LoRA), Local VLM Judge (`Qwen2.5-VL-7B`), Local HPSv3.
-*   **Behavior**: Checkpoints aggressively every 15 minutes to survive 9-12hr session limits. Uses `/kaggle/working` persistence.
+*   **Components**: Open-weight policy (`Qwen/Qwen2.5-Coder-1.5B-Instruct` with LoRA), Local VLM Judge (`Qwen/Qwen2-VL-2B-Instruct`), and five configured weighted rewards (Compilation 0.10, Aesthetic 0.15, Visual Richness 0.25, Brush Utilization 0.15, Pairwise VLM 0.00).
 
 ### `LOCAL`
 *   **Hardware**: User's local machine.

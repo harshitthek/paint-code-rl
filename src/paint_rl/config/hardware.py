@@ -214,14 +214,14 @@ class AutoHardwareOptimizer:
         """Configures environment flags, threads, and memory allocators."""
         profile = cls.get_profile()
 
-        # Optimize thread pool
-        optimal_threads = min(profile.cpu_cores, 10 if profile.device.type != "cpu" else 4)
+        # Optimize thread pool (accelerators need fewer CPU threads, CPU-only training needs more)
+        optimal_threads = min(profile.cpu_cores, 4 if profile.device.type != "cpu" else 10)
         torch.set_num_threads(optimal_threads)
 
         # MPS allocator flags
         if profile.device.type == "mps":
             os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
-            os.environ.setdefault("PYTORCH_MPS_HIGH_WATERMARK_RATIO", "0.0")
+            os.environ.setdefault("PYTORCH_MPS_HIGH_WATERMARK_RATIO", "0.8")
 
         # Disable tokenizer parallelism warnings
         os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")

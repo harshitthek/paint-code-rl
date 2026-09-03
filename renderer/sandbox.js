@@ -694,8 +694,12 @@ async function renderCode(code, seed, runId, options = {}) {
         },
         get(target, prop) {
             if (prop in target) {
+                const desc = Object.getOwnPropertyDescriptor(target, prop);
+                if (desc && !desc.configurable && !desc.writable) {
+                    return target[prop];
+                }
                 const v = target[prop];
-                if (prop === 'camera' || prop === 'brush' || prop === 'p5') return v;
+                if (prop === 'camera' || prop === 'brush' || prop === 'p5' || prop === 'signalRenderComplete') return v;
                 return typeof v === 'function' ? v.bind(target) : v;
             }
             if (typeof prop === 'string') {

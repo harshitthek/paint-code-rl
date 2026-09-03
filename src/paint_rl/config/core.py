@@ -196,7 +196,7 @@ def load_config(env: str = "local") -> tuple:
     try:
         config = ProjectConfig(**merged)
     except Exception as e:
-        raise ValueError(f"Configuration Error: {e}")
+        raise ConfigurationError(f"Configuration Error: {e}") from e
 
     # Hash
     config_json = config.model_dump_json(indent=2)

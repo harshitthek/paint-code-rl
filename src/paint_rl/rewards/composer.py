@@ -29,8 +29,13 @@ class RewardComposer:
         for c in components:
             if isinstance(c, tuple):
                 comp, weight = c
-                if hasattr(comp, "_weight"):
+                try:
                     comp._weight = weight
+                except AttributeError:
+                    try:
+                        comp.weight = weight
+                    except AttributeError:
+                        raise ValueError(f"Component {comp} does not support setting weight.")
                 unpacked.append(comp)
             else:
                 unpacked.append(c)

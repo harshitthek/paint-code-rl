@@ -175,8 +175,8 @@
         window.renderComplete = false;
         Object.defineProperty(window, 'signalRenderComplete', {
             value: function() { window.renderComplete = true; },
-            writable: false,
-            configurable: false
+            writable: true,
+            configurable: true
         });
         function ensureFallbackCanvas() {
             try {

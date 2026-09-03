@@ -29,7 +29,15 @@ app.get('/health', (req, res) => {
     res.json({ status: 'ok', inflight, jobsProcessed });
 });
 
+const SHUTDOWN_TOKEN = process.env.RENDERER_SHUTDOWN_TOKEN;
+
 app.post('/shutdown', async (req, res) => {
+    if (SHUTDOWN_TOKEN) {
+        const clientToken = req.headers['x-renderer-token'];
+        if (!clientToken || clientToken !== SHUTDOWN_TOKEN) {
+            return res.status(401).json({ error: "Unauthorized: Invalid or missing X-Renderer-Token" });
+        }
+    }
     res.json({ status: 'shutting_down' });
     setTimeout(async () => {
         try { await closeBrowser(); } catch (e) {}

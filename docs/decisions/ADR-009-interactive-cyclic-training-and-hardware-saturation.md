@@ -27,7 +27,7 @@ Initial reinforcement learning iterations for paint code generation operated wit
 
 ### 2. Interactive Cyclic Continuous Training Engine
 * Implemented `PaintGRPOTrainer.train_cyclic()` in [`src/paint_rl/trainer/grpo.py`](src/paint_rl/trainer/grpo.py).
-* Retains model, tokenizer, and optimizer permanently in GPU/MPS memory across cycles to eliminate reloading latency.
+* Retains tuned model weights and tokenizer permanently in GPU/MPS memory across cycles to eliminate reloading latency.
 * Prompts user between cycles: `[y (1 cycle) / n (save & quit) / <number> (N cycles)]`. Supports `--unattended` for headless cloud execution.
 
 ### 3. Closed-Form Laplacian Edge Variance & Entropy Metrics

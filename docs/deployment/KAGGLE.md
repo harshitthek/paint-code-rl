@@ -55,6 +55,15 @@ All training outputs are persisted to `/kaggle/working/artifacts/`:
 python scripts/train_grpo.py --mode train --steps-per-cycle 50 --max-steps 500 --unattended --max --dashboard
 ```
 
+### Publishing Model Checkpoints to Hugging Face
+To publish checkpoints to Hugging Face from Kaggle, save your token in **Add-ons $\rightarrow$ Secrets** as `HF_TOKEN`, then run:
+```bash
+python scripts/upload_model.py \
+  --destination hf \
+  --repo-id YOUR_HF_USERNAME/paint-code-rl-lora \
+  --token "$HF_TOKEN"
+```
+
 ---
 
 ## 6. Related Documentation

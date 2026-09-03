@@ -56,8 +56,7 @@ python scripts/generate_and_render.py \\
   --checkpoint {checkpoint_dir} \\
   --output-dir artifacts/renders \\
   --temperature 0.4 \\
-  --max-new-tokens 550 \\
-  --max
+  --max-new-tokens 550
 ```
 
 ### 2. In Python with Transformers & PEFT:
@@ -181,20 +180,36 @@ def main():
         print(f"[ERROR] Checkpoint directory not found at: {checkpoint_dir}")
         sys.exit(1)
 
-    # Check that required adapter weights exist
+    # Check that required adapter weights exist (search recursively)
+    candidate_dirs = []
+    if os.path.exists(os.path.join(checkpoint_dir, "adapter_config.json")) and (
+        os.path.exists(os.path.join(checkpoint_dir, "adapter_model.safetensors")) or
+        os.path.exists(os.path.join(checkpoint_dir, "adapter_model.bin"))
+    ):
+        candidate_dirs.append(checkpoint_dir)
+    
+    for root, dirs, files in os.walk(checkpoint_dir):
+        if "adapter_config.json" in files and ("adapter_model.safetensors" in files or "adapter_model.bin" in files):
+            if root not in candidate_dirs:
+                candidate_dirs.append(root)
+
+    resolved_adapter_dir = None
+    if candidate_dirs:
+        final_matches = [d for d in candidate_dirs if "final_adapter" in d]
+        if final_matches:
+            resolved_adapter_dir = final_matches[0]
+        else:
+            candidate_dirs.sort(key=lambda d: os.path.getmtime(d), reverse=True)
+            resolved_adapter_dir = candidate_dirs[0]
+
+    if not resolved_adapter_dir:
+        print(f"[ERROR] No valid adapter directory containing adapter_config.json and weights found in: {checkpoint_dir}")
+        sys.exit(1)
+
+    checkpoint_dir = resolved_adapter_dir
     adapter_config_path = os.path.join(checkpoint_dir, "adapter_config.json")
     adapter_weights_path = os.path.join(checkpoint_dir, "adapter_model.safetensors")
-    
-    if not os.path.exists(adapter_config_path):
-        # Check subdirectories (e.g. checkpoint-25)
-        for entry in sorted(os.listdir(checkpoint_dir), reverse=True):
-            sub = os.path.join(checkpoint_dir, entry)
-            if os.path.isdir(sub) and os.path.exists(os.path.join(sub, "adapter_config.json")):
-                checkpoint_dir = sub
-                adapter_config_path = os.path.join(checkpoint_dir, "adapter_config.json")
-                adapter_weights_path = os.path.join(checkpoint_dir, "adapter_model.safetensors")
-                print(f"[INFO] Using latest checkpoint subdirectory: {checkpoint_dir}")
-                break
+    print(f"[INFO] Using resolved adapter directory: {checkpoint_dir}")
 
     print("=" * 80)
     print(" PAINT-CODE-RL: MODEL PUBLISHING ASSISTANT")

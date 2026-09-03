@@ -242,16 +242,27 @@ class PaintGRPOTrainer:
                 batch_results = [{"success": False} for _ in completions]
             
             rewards = []
-            for res in batch_results:
+            for i, res in enumerate(batch_results):
                 try:
                     if res.get("success") and res.get("image_path"):
                         richness_meta = calculate_visual_richness(res["image_path"])
                         if richness_meta.get("is_blank"):
-                            rewards.append(0.05)
+                            r = 0.05
                         else:
                             richness_score = richness_meta.get("richness_score", 0.0)
-                            total_r = 0.35 + 0.65 * richness_score
-                            rewards.append(round(min(1.0, total_r), 3))
+                            r = round(min(1.0, 0.35 + 0.65 * richness_score), 3)
+                        rewards.append(r)
+                        if getattr(self, "_active_dashboard_writer", None):
+                            p_txt = batch_items[i].get("prompt", "") if i < len(batch_items) else ""
+                            c_txt = batch_items[i].get("code", "") if i < len(batch_items) else ""
+                            self._active_dashboard_writer.add_sample(
+                                prompt=p_txt,
+                                code=c_txt,
+                                image_path=res.get("image_path"),
+                                scorecard=richness_meta.get("critique", ""),
+                                reward=r,
+                                step=getattr(self, "_current_step", 0)
+                            )
                     else:
                         rewards.append(0.0)
                 except Exception:
@@ -360,7 +371,6 @@ class PaintGRPOTrainer:
         print(f"  max_new_tokens={max_new_tokens}")
         print(f"  output_dir={output_dir}")
         
-        num_gens = group_size
         prompt_batch_size = num_gens
         grad_accum = max(1, batch_size // num_gens)
         
@@ -493,7 +503,8 @@ class PaintGRPOTrainer:
         print(f"  Steps/cycle: {steps_per_cycle} | Batch: {batch_size} | Group: {num_gens}")
         print(f"  Max tokens: {max_new_tokens} | Device: {self.device}")
         print(f"  Mode: {'Unattended' if unattended else 'Interactive'}")
-        print()
+        self._active_dashboard_writer = dashboard_writer
+        self._current_step = total_steps_done
         
         while True:
             cycle_num += 1
@@ -560,6 +571,8 @@ class PaintGRPOTrainer:
             
             train_output = self.trainer.train()
             total_steps_done += cycle_steps
+            if hasattr(self.trainer, "model") and self.trainer.model is not None:
+                self.model = self.trainer.model
             
             # Extract real RL training metrics from log history
             log_hist = self.trainer.state.log_history if hasattr(self.trainer, "state") and self.trainer.state else []

@@ -105,14 +105,15 @@ def main():
                 tar.add(path, arcname=arcname)
 
     size_mb = os.path.getsize(archive_path) / (1024 * 1024)
-    print(f"\n[OK] Package created successfully:")
+    print("\n[OK] Package created successfully:")
     print(f"  File: {archive_path}")
     print(f"  Size: {size_mb:.2f} MB")
     print("\nHow to transfer:")
-    print(f"  1. From remote Mac/Kaggle to your machine:")
+    print("  1. From remote Mac/Kaggle to your machine:")
     print(f"     scp user@remote-ip:{archive_path} ./")
-    print(f"  2. To extract on your machine:")
-    print(f"     unzip {os.path.basename(archive_path)}")
+    print("  2. To extract on your machine:")
+    extract_cmd = f"tar -xzf {os.path.basename(archive_path)}" if args.format == "tar.gz" else f"unzip {os.path.basename(archive_path)}"
+    print(f"     {extract_cmd}")
     print("=" * 60)
 
 
