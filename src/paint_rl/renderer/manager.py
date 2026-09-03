@@ -186,7 +186,16 @@ class RendererService:
                 return sorted(data["results"], key=lambda r: r.get("batch_index", 0))
             return [{"success": False, "error_classification": "BATCH_ERROR"} for _ in items]
         except Exception as e:
-            return [{"success": False, "error_classification": "BATCH_HTTP_ERROR", "runtime_error": str(e)} for _ in items]
+            # Resilient fallback: render individually if batch fails so reward is never dropped
+            try:
+                results = []
+                for idx, item in enumerate(items):
+                    r = self.render(item.get("code", ""), seed=item.get("seed", 42), prompt=item.get("prompt", ""))
+                    r["batch_index"] = idx
+                    results.append(r)
+                return results
+            except Exception:
+                return [{"success": False, "error_classification": "BATCH_HTTP_ERROR", "runtime_error": str(e)} for _ in items]
 
     def shutdown(self):
         """Cleanly terminate the renderer process and all child Chrome instances."""

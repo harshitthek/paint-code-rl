@@ -4,7 +4,22 @@ const { renderCode, closeBrowser } = require('./sandbox');
 const app = express();
 app.use(express.json({ limit: '5mb' }));
 
-const MAX_INFLIGHT = 10;
+const os = require('os');
+const MAX_INFLIGHT = 64;
+const CONCURRENT_WORKERS = Math.min(4, Math.max(2, (os.cpus() && os.cpus().length) || 4));
+
+async function mapConcurrent(items, limit, fn) {
+    const results = new Array(items.length);
+    let index = 0;
+    const workers = new Array(Math.min(limit, items.length)).fill(0).map(async () => {
+        while (index < items.length) {
+            const i = index++;
+            results[i] = await fn(items[i], i);
+        }
+    });
+    await Promise.all(workers);
+    return results;
+}
 let inflight = 0;
 let jobsProcessed = 0;
 const RESTART_AFTER = 100;
@@ -90,27 +105,26 @@ app.post('/render_batch', async (req, res) => {
     }
     
     try {
-        const promises = items.map((item, idx) => {
+        const results = await mapConcurrent(items, CONCURRENT_WORKERS, async (item, idx) => {
             const runId = 'batch_' + Date.now() + '_' + (++batchSeq) + '_' + idx;
             const start = Date.now();
             const opts = return_base64 ? { return_base64: true } : {};
-            return renderCode(item.code || '', item.seed, runId, opts)
-                .then(result => {
-                    result.render_ms = Date.now() - start;
-                    result.batch_index = idx;
-                    return result;
-                })
-                .catch(err => ({
+            try {
+                const result = await renderCode(item.code || '', item.seed, runId, opts);
+                result.render_ms = Date.now() - start;
+                result.batch_index = idx;
+                return result;
+            } catch (err) {
+                return {
                     success: false,
                     image_path: null,
                     error_classification: 'BATCH_RENDER_ERROR',
                     runtime_error: err.toString(),
                     batch_index: idx,
                     render_ms: Date.now() - start
-                }));
+                };
+            }
         });
-        
-        const results = await Promise.all(promises);
         res.json({ success: true, results });
     } finally {
         inflight -= items.length;
