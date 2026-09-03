@@ -28,12 +28,14 @@ Instead of hardcoding models, the `ComputeBackend` executes a hardware fingerpri
 *   If `API_KEYS` are missing in `FREE` mode, it auto-mounts the `LocalJudgeProvider` (e.g., `Pixtral-12B`).
 
 ## 3. Reward & Uncertainty Decoupling
-Rewards are no longer a static sum. The architecture defines `RewardComponent` instances:
-*   `CompileReward`
-*   `HPSv3Reward`
-*   `PairwisePreferenceReward`
+Rewards are modular components aggregated via `RewardComposer`:
+*   `CompileRewardComponent`
+*   `AestheticRewardComponent` / `CLIPAestheticScorer`
+*   `VisualRichnessComponent`
+*   `BrushUtilizationComponent`
+*   `PairwiseRewardComponent`
 
-The composed reward reports the expected value **and** its empirical variance ($Var[R]$). Because `p5.brush` injects environment noise, tracking uncertainty allows the GRPO optimizer to correctly discount highly variant signals.
+*Implementation Note*: `RewardComposer.compute()` currently aggregates scalar weighted scores (`total_reward: float`) formatted as `list[float]` for standard TRL `GRPOTrainer` reward evaluation. Empirical variance reporting ($Var[R]$) for uncertainty-aware gradient discounting across noisy `p5.brush` rollout seeds is planned work.
 
 ## 4. Decoupled Rollout Engines
 To prevent `Puppeteer` HTTP polling from bottlenecking PyTorch:
