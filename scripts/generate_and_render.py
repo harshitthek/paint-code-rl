@@ -341,24 +341,25 @@ def main():
             img_out_path = os.path.join(args.output_dir, img_filename)
             rel_img_path = os.path.relpath(img_out_path, os.path.dirname(os.path.abspath(args.gallery_path)))
             
-            if not (render_res.get("success") and render_res.get("image_path")):
+            if not render_res or not (render_res.get("success") and render_res.get("image_path")):
                 print(f"🔄 Retrying Artwork {idx+1} with sanitized 600x600 canvas...")
                 import re
                 sanitized_code = re.sub(r'createCanvas\s*\([^)]*\)', 'createCanvas(600, 600, WEBGL)', code)
                 retry_res = renderer.render(sanitized_code, seed=42 + idx, prompt=p)
-                if retry_res.get("success") and retry_res.get("image_path"):
+                if retry_res and retry_res.get("success") and retry_res.get("image_path"):
                     render_res = retry_res
                     code = sanitized_code
 
-            if render_res.get("success") and render_res.get("image_path"):
+            if render_res and render_res.get("success") and render_res.get("image_path"):
                 shutil.copy(render_res["image_path"], img_out_path)
                 print(f"✅ Render SUCCESS ({render_res.get('render_ms', 0)}ms): Saved to {img_out_path}")
                 status = "SUCCESS"
                 err = None
             else:
-                status = render_res.get("error_classification", "FAILED")
-                err = render_res.get("runtime_error", "Unknown error")
-                print(f"❌ Render FAILED ({render_res.get('render_ms', 0)}ms): {status} -> {err}")
+                status = render_res.get("error_classification", "FAILED") if render_res else "RENDER_FAILED"
+                err = render_res.get("runtime_error", "Unknown error") if render_res else "No response from renderer"
+                render_ms = render_res.get("render_ms", 0) if render_res else 0
+                print(f"❌ Render FAILED ({render_ms}ms): {status} -> {err}")
                 rel_img_path = None
 
             results.append({
@@ -367,7 +368,7 @@ def main():
                 "rel_image_path": rel_img_path,
                 "status": status,
                 "error": err,
-                "render_ms": render_res.get("render_ms", 0),
+                "render_ms": render_res.get("render_ms", 0) if render_res else 0,
                 "seed": 42 + idx
             })
     else:
