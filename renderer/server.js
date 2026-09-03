@@ -30,13 +30,15 @@ app.get('/health', (req, res) => {
 });
 
 const SHUTDOWN_TOKEN = process.env.RENDERER_SHUTDOWN_TOKEN;
+if (!SHUTDOWN_TOKEN) {
+    console.error("Fatal: RENDERER_SHUTDOWN_TOKEN environment variable must be set.");
+    process.exit(1);
+}
 
 app.post('/shutdown', async (req, res) => {
-    if (SHUTDOWN_TOKEN) {
-        const clientToken = req.headers['x-renderer-token'];
-        if (!clientToken || clientToken !== SHUTDOWN_TOKEN) {
-            return res.status(401).json({ error: "Unauthorized: Invalid or missing X-Renderer-Token" });
-        }
+    const clientToken = req.headers['x-renderer-token'];
+    if (!clientToken || clientToken !== SHUTDOWN_TOKEN) {
+        return res.status(401).json({ error: "Unauthorized: Invalid or missing X-Renderer-Token" });
     }
     res.json({ status: 'shutting_down' });
     setTimeout(async () => {

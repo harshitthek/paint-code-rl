@@ -1,4 +1,4 @@
-import os, sys, json, time, subprocess, traceback, math
+import os, sys, json, time, subprocess, traceback, math, secrets
 import platform, psutil, shutil
 
 # Ensure we can import the project modules
@@ -154,7 +154,9 @@ def phase_hpsv3_feasibility():
 def phase_renderer():
     try:
         renderer_dir = os.path.join(project_root, 'renderer')
-        server_process = subprocess.Popen(["node", "server.js"], cwd=renderer_dir)
+        env = os.environ.copy()
+        env["RENDERER_SHUTDOWN_TOKEN"] = secrets.token_hex(16)
+        server_process = subprocess.Popen(["node", "server.js"], cwd=renderer_dir, env=env)
         time.sleep(3) # Wait for server
         
         import requests

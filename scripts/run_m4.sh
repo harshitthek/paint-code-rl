@@ -34,6 +34,7 @@ fi
 
 # 4. Start Renderer Daemon in background
 echo "🚀 Starting Metal-accelerated WebGL Renderer daemon on port 3000..."
+export RENDERER_SHUTDOWN_TOKEN=${RENDERER_SHUTDOWN_TOKEN:-$(head -c 16 /dev/urandom 2>/dev/null | xxd -p 2>/dev/null || echo "m4_session_token_12345")}
 node renderer/server.js &
 RENDERER_PID=$!
 trap "kill $RENDERER_PID 2>/dev/null || true" EXIT

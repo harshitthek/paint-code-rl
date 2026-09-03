@@ -223,7 +223,8 @@ class RendererService:
     def shutdown(self):
         """Cleanly terminate the renderer process and all child Chrome instances."""
         try:
-            headers = {"X-Renderer-Token": getattr(self, "shutdown_token", "")}
+            token = getattr(self, "shutdown_token", "") or os.environ.get("RENDERER_SHUTDOWN_TOKEN", "")
+            headers = {"X-Renderer-Token": token}
             self._session.post(f"{self.base_url}/shutdown", headers=headers, timeout=0.5)
         except Exception:
             pass
