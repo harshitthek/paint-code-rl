@@ -300,7 +300,8 @@ async function renderCode(code, seed, runId, options = {}) {
         safeCode = safeCode.replace(/loadFont\s*\([^)]*\)/g, '""');
         safeCode = safeCode.replace(/loadJSON\s*\([^)]*\)/g, '{}');
         safeCode = safeCode.replace(/loadStrings\s*\([^)]*\)/g, '[]');
-        safeCode = safeCode.replace(/loadSound\s*\([^)]*\)/g, '{}');
+        safeCode = safeCode.replace(/createCanvas\s*\(\s*windowWidth\s*,\s*windowHeight/g, 'createCanvas(600, 600');
+        safeCode = safeCode.replace(/createCanvas\s*\(\s*width\s*,\s*height/g, 'createCanvas(600, 600');
 
         // Inline preload() body into setup() so variables (e.g. mountains = [], clouds = []) are initialized
         // without risking premature brush.load() failure before createCanvas()

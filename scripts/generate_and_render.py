@@ -179,16 +179,32 @@ def main():
     model_config.use_sliding_window = False
 
     dtype = torch.float32 if policy_device.type in ["mps", "cpu"] else torch.float16
-    base_model = AutoModelForCausalLM.from_pretrained(
-        base_model_name,
-        config=model_config,
-        torch_dtype=dtype,
-        attn_implementation="sdpa"
-    ).to(policy_device)
+    cuda_devices = torch.cuda.device_count() if policy_device.type == "cuda" else 0
+    use_multi_gpu = cuda_devices > 1
+
+    if use_multi_gpu:
+        print(f"🚀 Detected {cuda_devices} CUDA GPUs! Distributing model across all GPUs (device_map='auto')...")
+        base_model = AutoModelForCausalLM.from_pretrained(
+            base_model_name,
+            config=model_config,
+            torch_dtype=dtype,
+            device_map="auto",
+            attn_implementation="sdpa"
+        )
+    else:
+        base_model = AutoModelForCausalLM.from_pretrained(
+            base_model_name,
+            config=model_config,
+            torch_dtype=dtype,
+            attn_implementation="sdpa"
+        ).to(policy_device)
 
     if adapter_path and os.path.exists(adapter_path):
         print(f"Applying trained LoRA adapter from: {adapter_path}...")
-        model = PeftModel.from_pretrained(base_model, adapter_path).to(policy_device)
+        if use_multi_gpu:
+            model = PeftModel.from_pretrained(base_model, adapter_path, device_map="auto")
+        else:
+            model = PeftModel.from_pretrained(base_model, adapter_path).to(policy_device)
         print("✅ Trained LoRA policy loaded successfully!")
     else:
         model = base_model
@@ -225,7 +241,8 @@ def main():
             {"role": "user", "content": f"Create generative art in p5.js: {p}"}
         ]
         text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-        inputs = tokenizer(text, return_tensors="pt").to(policy_device)
+        target_device = model.device if hasattr(model, "device") else policy_device
+        inputs = tokenizer(text, return_tensors="pt").to(target_device)
         
         with torch.inference_mode():
             outputs = model.generate(

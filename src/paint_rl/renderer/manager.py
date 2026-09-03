@@ -10,7 +10,7 @@ import signal
 class RendererService:
     """Manages the Node.js/Puppeteer WebGL rendering service subprocess."""
     
-    def __init__(self, port: int = 3000, timeout: int = 25):
+    def __init__(self, port: int = 3000, timeout: int = 60):
         self.port = port
         self.timeout = timeout
         self.base_url = f"http://127.0.0.1:{self.port}"

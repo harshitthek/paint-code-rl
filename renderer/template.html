@@ -17,7 +17,9 @@
                 p5.prototype.createCanvas = function(w, h, renderer) {
                     const webglConst = (typeof window !== 'undefined' && window.WEBGL) || (typeof p5 !== 'undefined' && p5.prototype && p5.prototype.WEBGL) || 'webgl';
                     const targetRenderer = (window.__FORCE_WEBGL || !renderer) ? webglConst : renderer;
-                    const c = _orig.call(this, w || 600, h || 600, targetRenderer);
+                    let finalW = (typeof w === 'number' && w > 0) ? Math.min(w, 800) : 600;
+                    let finalH = (typeof h === 'number' && h > 0) ? Math.min(h, 800) : 600;
+                    const c = _orig.call(this, finalW, finalH, targetRenderer);
                     setTimeout(function() {
                         if (typeof window.signalRenderComplete === 'function') {
                             window.signalRenderComplete();
