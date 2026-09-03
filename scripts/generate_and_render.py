@@ -106,6 +106,8 @@ def main():
                         help="Path to local trained LoRA checkpoint directory")
     parser.add_argument("--kagglehub", type=str, default=None,
                         help="KaggleHub model handle to download (e.g. pernavjain/paint-code/pyTorch/default)")
+    parser.add_argument("--hf", type=str, default=None,
+                        help="Hugging Face model repo ID (e.g. username/paint-code-rl-lora)")
     parser.add_argument("--prompt", type=str, default=None,
                         help="Custom prompt to generate (optional)")
     parser.add_argument("--output-dir", type=str, default="artifacts/renders",
@@ -138,6 +140,15 @@ def main():
         except Exception as e:
             print(f"[ERROR] Failed to download via kagglehub: {e}")
             print("Install kagglehub: pip install kagglehub")
+            sys.exit(1)
+    elif args.hf:
+        print(f"\n[HuggingFace] Downloading model from repo: {args.hf}...")
+        try:
+            from huggingface_hub import snapshot_download
+            adapter_path = snapshot_download(repo_id=args.hf)
+            print(f"[HuggingFace] Model downloaded to: {adapter_path}")
+        except Exception as e:
+            print(f"[ERROR] Failed to download from HuggingFace: {e}")
             sys.exit(1)
     elif args.checkpoint:
         adapter_path = os.path.abspath(args.checkpoint)
