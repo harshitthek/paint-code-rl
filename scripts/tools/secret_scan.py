@@ -13,11 +13,11 @@ secret_patterns = [
 ]
 
 SCAN_EXTENSIONS = ('.json', '.yaml', '.yml', '.py', '.md', '.ipynb', '.sh', '.js', '.html', '.toml', '.txt')
+EXCLUDED_DIRS = {'.git', '.venv', '__pycache__', 'node_modules'}
 
 found = False
-for r, d, files in os.walk(root):
-    if '.git' in r or '.venv' in r or '__pycache__' in r or 'node_modules' in r:
-        continue
+for r, dirs, files in os.walk(root):
+    dirs[:] = [d for d in dirs if d not in EXCLUDED_DIRS]
     for f in files:
         if f.endswith(SCAN_EXTENSIONS):
             path = os.path.join(r, f)

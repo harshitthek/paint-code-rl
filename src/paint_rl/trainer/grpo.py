@@ -541,7 +541,6 @@ class PaintGRPOTrainer:
         print(f"  Max tokens: {max_new_tokens} | Device: {self.device}")
         print(f"  Mode: {'Unattended' if unattended else 'Interactive'}")
         self._active_dashboard_writer = dashboard_writer
-        self._current_step = total_steps_done
         
         while True:
             cycle_num += 1
@@ -606,6 +605,7 @@ class PaintGRPOTrainer:
                 peft_config=peft_config if cycle_num == 1 else None,
             )
             
+            self._current_step = total_steps_done
             train_output = self.trainer.train()
             total_steps_done += cycle_steps
             if hasattr(self.trainer, "model") and self.trainer.model is not None:

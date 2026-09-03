@@ -96,6 +96,9 @@ def build_gallery_html(renders: list, output_path: str):
 </body>
 </html>
 """
+    parent_dir = os.path.dirname(os.path.abspath(output_path))
+    if parent_dir:
+        os.makedirs(parent_dir, exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(html)
     print(f"\n🎉 Interactive Gallery written to: {output_path}")
@@ -477,6 +480,9 @@ def main():
                 "seed": 42 + i
             })
 
+    gallery_parent = os.path.dirname(os.path.abspath(args.gallery_path))
+    if gallery_parent:
+        os.makedirs(gallery_parent, exist_ok=True)
     build_gallery_html(results, args.gallery_path)
     
     print("\n================================================================================")

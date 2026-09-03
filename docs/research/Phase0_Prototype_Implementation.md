@@ -374,8 +374,16 @@ The Phase-0 prototype specification has been fully implemented, validated, and s
 > - `PairwiseRewardComponent`: 0.00 (in FREE/LOCAL mode)
 
 ```python
-# Historical prototype configurations for archival reference only:
+# Active 5-tier RewardConfig schema (compatible with paint_rl.config.core.RewardConfig):
 class RewardConfig:
-    ORIGINAL_PROJECT = {"compile": 0.05, "length": 0.05, "hpsv3": 0.30, "pairwise": 0.60}
-    PHASE0_PROTOTYPE = {"compile": 0.10, "length": 0.00, "hpsv3": 0.30, "pairwise": 0.60}
+    weights = {
+        "compile": 0.10,
+        "aesthetic": 0.15,
+        "richness": 0.25,
+        "brush": 0.15,
+        "pairwise": 0.00,
+    }
+
+# Archival Phase-0 reference (historical):
+# PHASE0_PROTOTYPE = {"compile": 0.10, "length": 0.00, "hpsv3": 0.30, "pairwise": 0.60}
 ```

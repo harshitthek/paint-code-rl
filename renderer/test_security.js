@@ -10,7 +10,8 @@ async function run() {
             name: "Infinite Loop Defense",
             code: "function setup() { while(true){} }",
             expect: "TIMEOUT",
-            runId: "sec_test_loop"
+            runId: "sec_test_loop",
+            options: { page_load_timeout_ms: 3000, code_execution_timeout_ms: 3000 }
         },
         {
             name: "Invalid JavaScript Syntax",
@@ -75,7 +76,7 @@ async function run() {
 
     for (const c of cases) {
         process.stdout.write(`  [TEST] ${c.name.padEnd(45, '.')}`);
-        const result = await renderCode(c.code, 42, c.runId);
+        const result = await renderCode(c.code, 42, c.runId, c.options || {});
         
         if (result.error_classification === c.expect) {
             console.log(` [PASS] (Got: ${result.error_classification})`);

@@ -18,6 +18,12 @@ class RewardResult:
 
 
 class RewardComponent(ABC):
+    _weight: float = 1.0
+
+    @property
+    def weight(self) -> float:
+        return getattr(self, "_weight", 1.0)
+
     @property
     @abstractmethod
     def name(self) -> str: ...

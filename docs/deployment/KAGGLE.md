@@ -56,8 +56,10 @@ python scripts/train_grpo.py --mode train --steps-per-cycle 50 --max-steps 500 -
 ```
 
 ### Publishing Model Checkpoints to Hugging Face
-To publish checkpoints to Hugging Face from Kaggle, save your token in **Add-ons $\rightarrow$ Secrets** as `HF_TOKEN`, then run:
+To publish checkpoints to Hugging Face from Kaggle, save your token in **Add-ons $\rightarrow$ Secrets** as `HF_TOKEN`, retrieve and export it into the environment, then run `upload_model.py`:
 ```bash
+export HF_TOKEN=$(python3 -c "from kaggle_secrets import UserSecretsClient; print(UserSecretsClient().get_secret('HF_TOKEN'))")
+
 python scripts/upload_model.py \
   --destination hf \
   --repo-id YOUR_HF_USERNAME/paint-code-rl-lora \

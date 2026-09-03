@@ -43,7 +43,7 @@ trap "kill $RENDERER_PID 2>/dev/null || true" EXIT
 RENDERER_READY=0
 sleep 2
 for i in {1..15}; do
-    if curl -s http://127.0.0.1:3000/health | grep -q '"status":"ok"'; then
+    if curl -s --connect-timeout 2 --max-time 3 http://127.0.0.1:3000/health | grep -q '"status":"ok"'; then
         echo "✅ WebGL Renderer ready (Metal ANGLE Accelerated)"
         RENDERER_READY=1
         break

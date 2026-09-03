@@ -195,10 +195,10 @@ async function renderCode(code, seed, runId, options = {}) {
     const safeRunId = String(runId || 'render_' + Date.now()).replace(/[^a-zA-Z0-9_-]/g, '_');
     
     const timeouts = {
-        browser_startup: options.browser_startup_timeout_ms || 10000,
-        page_load: options.page_load_timeout_ms || 5000,
-        code_execution: options.code_execution_timeout_ms || 4000,
-        screenshot: options.screenshot_timeout_ms || 3000
+        browser_startup: options.browser_startup_timeout_ms || 25000,
+        page_load: options.page_load_timeout_ms || 15000,
+        code_execution: options.code_execution_timeout_ms || 15000,
+        screenshot: options.screenshot_timeout_ms || 8000
     };
 
     const b = await initBrowser();

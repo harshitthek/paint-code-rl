@@ -197,6 +197,7 @@ def main():
     if candidate_dirs:
         final_matches = [d for d in candidate_dirs if "final_adapter" in d]
         if final_matches:
+            final_matches.sort(key=lambda d: os.path.getmtime(d), reverse=True)
             resolved_adapter_dir = final_matches[0]
         else:
             candidate_dirs.sort(key=lambda d: os.path.getmtime(d), reverse=True)

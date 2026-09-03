@@ -409,7 +409,7 @@ async function runAdversarialTests() {
             if (test.expectSuccess) {
                 testPassed = res.success === true;
             } else {
-                testPassed = res.success === false;
+                testPassed = res.success === false && (!test.expectedErrorClass || res.error_classification === test.expectedErrorClass);
             }
 
             if (testPassed) {
