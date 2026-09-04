@@ -1,5 +1,12 @@
 # Training AI to Paint with Code (`paint-code-rl`)
 
+[![GitHub Release](https://img.shields.io/github/v/release/harshitthek/paint-code-rl?color=blue&label=Release)](https://github.com/harshitthek/paint-code-rl/releases)
+[![Hugging Face Model](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-HarshittheK%2Fpaint--code--rl--lora-ffd21e.svg)](https://huggingface.co/HarshittheK/paint-code-rl-lora)
+[![Open In Kaggle](https://kaggle.com/static/images/open-in-kaggle.svg)](https://www.kaggle.com/code)
+[![Tests](https://img.shields.io/badge/Tests-148%20Passing%20(100%25)-brightgreen.svg)](TEST_STATUS.md)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10%20%7C%203.11-blue.svg)](pyproject.toml)
+
 > A research platform for training language models to generate executable generative art programs (`p5.js` / `p5.brush`) using reinforcement learning (GRPO), a 5-tier verifiable visual reward matrix, and interactive cyclic continuous training.
 
 ---
@@ -137,6 +144,35 @@ When `--dashboard` is enabled during training, open `artifacts/dashboard.html` i
 * **Real-time Trajectories:** Visualizes training loss alongside dynamic exponential temperature annealing ($T=0.85 \rightarrow 0.55$).
 * **Artwork Gallery:** Inspect latest generated artworks, reward breakdowns, and p5.js source code.
 * **Auto-Refresh:** Updates automatically every 10 seconds.
+
+---
+
+## 🚀 Hub Models & Cloud Workflows
+
+| Platform | Resource | Link / Handle | Description / Usage |
+| :--- | :--- | :--- | :--- |
+| **Hugging Face** | Model Weights | [`HarshittheK/paint-code-rl-lora`](https://huggingface.co/HarshittheK/paint-code-rl-lora) | Auto-downloaded by `scripts/generate_and_render.py` |
+| **Kaggle Notebooks** | 1-Click Dual-GPU Training | [`notebooks/kaggle_paint_rl.ipynb`](notebooks/kaggle_paint_rl.ipynb) | Dual Tesla T4 training with full hardware saturation |
+| **Kaggle Models** | Model Checkpoint | [`pernavjain/paint-code`](https://www.kaggle.com/models) | Downloadable via `kagglehub.model_download()` |
+| **GitHub Releases** | Source & Release Bundles | [Releases](https://github.com/harshitthek/paint-code-rl/releases) | Stable releases, tags, and changelogs |
+
+### Download & Evaluate Pretrained Weights
+```bash
+# Auto-download from Hugging Face and render art gallery
+python scripts/generate_and_render.py --model Qwen/Qwen2.5-Coder-1.5B-Instruct --max
+
+# Or download from Kaggle Models via KaggleHub
+python scripts/generate_and_render.py --kagglehub pernavjain/paint-code/pyTorch/default
+```
+
+### Publish Checkpoints to Hubs
+```bash
+# Publish to Hugging Face Hub (requires HF_TOKEN)
+python scripts/upload_model.py --checkpoint artifacts/checkpoints/checkpoint-50 --hf-repo HarshittheK/paint-code-rl-lora
+
+# Publish to Kaggle Models via KaggleHub (requires KAGGLE_USERNAME & KAGGLE_KEY)
+python scripts/upload_model.py --checkpoint artifacts/checkpoints/checkpoint-50 --kaggle-handle HarshittheK/paint-code
+```
 
 ---
 
