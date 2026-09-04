@@ -4,14 +4,140 @@ const fs = require('fs');
 const vm = require('vm');
 
 function balanceTokens(jsCode) {
-    if (!jsCode) return "";
-    let openP = (jsCode.match(/\(/g) || []).length;
-    let closeP = (jsCode.match(/\)/g) || []).length;
-    if (openP > closeP) jsCode += ")".repeat(openP - closeP) + ";";
+    if (!jsCode || typeof jsCode !== 'string') return "";
 
-    let openB = (jsCode.match(/\{/g) || []).length;
-    let closeB = (jsCode.match(/\}/g) || []).length;
-    if (openB > closeB) jsCode += "\n" + "}".repeat(openB - closeB);
+    let openP = 0;
+    let openB = 0;
+
+    let i = 0;
+    const len = jsCode.length;
+    let lastToken = '';
+
+    while (i < len) {
+        const char = jsCode[i];
+        const nextChar = jsCode[i + 1] || '';
+
+        // 1. Single-line comment: skip until newline
+        if (char === '/' && nextChar === '/') {
+            i += 2;
+            while (i < len && jsCode[i] !== '\n') {
+                i++;
+            }
+            lastToken = 'comment';
+            continue;
+        }
+
+        // 2. Multi-line comment: skip until */
+        if (char === '/' && nextChar === '*') {
+            i += 2;
+            while (i < len && !(jsCode[i] === '*' && jsCode[i + 1] === '/')) {
+                i++;
+            }
+            i += 2;
+            lastToken = 'comment';
+            continue;
+        }
+
+        // 3. String literals (' or "): skip until matching quote or newline
+        if (char === "'" || char === '"') {
+            const quote = char;
+            i++;
+            while (i < len && jsCode[i] !== quote && jsCode[i] !== '\n') {
+                if (jsCode[i] === '\\') {
+                    i++;
+                }
+                i++;
+            }
+            if (i < len && jsCode[i] === quote) {
+                i++;
+            }
+            lastToken = 'string';
+            continue;
+        }
+
+        // 4. Template literals (`): skip until matching backtick
+        if (char === '`') {
+            i++;
+            while (i < len && jsCode[i] !== '`') {
+                if (jsCode[i] === '\\') {
+                    i++;
+                }
+                i++;
+            }
+            if (i < len && jsCode[i] === '`') {
+                i++;
+            }
+            lastToken = 'string';
+            continue;
+        }
+
+        // 5. Regular expression literal: /pattern/flags
+        if (char === '/') {
+            const isRegex = !lastToken || /^(?:[=({\[,:;!&|?+\-*%^~]|\b(?:return|case|typeof|yield|await|delete|throw|instanceof|in))$/.test(lastToken);
+            if (isRegex) {
+                i++;
+                let inClass = false;
+                while (i < len && jsCode[i] !== '\n') {
+                    if (jsCode[i] === '\\') {
+                        i += 2;
+                        continue;
+                    }
+                    if (jsCode[i] === '[') {
+                        inClass = true;
+                    } else if (jsCode[i] === ']' && inClass) {
+                        inClass = false;
+                    } else if (jsCode[i] === '/' && !inClass) {
+                        i++;
+                        while (i < len && /[a-z]/i.test(jsCode[i])) {
+                            i++;
+                        }
+                        break;
+                    }
+                    i++;
+                }
+                lastToken = 'regex';
+                continue;
+            }
+        }
+
+        // 6. Delimiters and code tokens
+        if (!/\s/.test(char)) {
+            if (char === '(') {
+                openP++;
+                lastToken = '(';
+            } else if (char === ')') {
+                if (openP > 0) openP--;
+                lastToken = ')';
+            } else if (char === '{') {
+                openB++;
+                lastToken = '{';
+            } else if (char === '}') {
+                if (openB > 0) openB--;
+                lastToken = '}';
+            } else {
+                if (/[a-zA-Z0-9_$]/.test(char)) {
+                    let word = '';
+                    while (i < len && /[a-zA-Z0-9_$]/.test(jsCode[i])) {
+                        word += jsCode[i];
+                        i++;
+                    }
+                    lastToken = word;
+                    continue;
+                } else {
+                    lastToken = char;
+                }
+            }
+        }
+
+        i++;
+    }
+
+    if (openP > 0) {
+        jsCode += ")".repeat(openP) + ";";
+    }
+    if (openB > 0) {
+        jsCode += "\n" + "}".repeat(openB);
+    }
 
     return jsCode;
 }
@@ -140,10 +266,36 @@ function hoistSetupVariables(jsCode) {
     return topDeclarations + jsCode.replace(setupMatch[0], setupHeader + transformedBody + setupFooter);
 }
 
-let browser;
+let browser = null;
+let activeRenders = 0;
+let recycleRequired = false;
+let recyclePromise = null;
+
+function getActiveRenders() {
+    return activeRenders;
+}
+
+function isRecycleRequired() {
+    return recycleRequired;
+}
+
+async function scheduleRecycle() {
+    if (recyclePromise) return recyclePromise;
+    recycleRequired = false;
+    recyclePromise = (async () => {
+        try {
+            await closeBrowser(true);
+        } catch (e) {
+            console.error("Error during scheduled browser recycle:", e);
+        } finally {
+            recyclePromise = null;
+        }
+    })();
+    return recyclePromise;
+}
 
 async function initBrowser() {
-    if (browser) return browser;
+    if (browser && (!browser.isConnected || browser.isConnected())) return browser;
     const args = [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -191,6 +343,12 @@ async function initBrowser() {
 }
 
 async function renderCode(code, seed, runId, options = {}) {
+    while (recyclePromise) {
+        await recyclePromise;
+    }
+    activeRenders++;
+    let page = null;
+
     // Security: sanitize runId to prevent directory traversal
     const safeRunId = String(runId || 'render_' + Date.now()).replace(/[^a-zA-Z0-9_-]/g, '_');
     
@@ -202,12 +360,18 @@ async function renderCode(code, seed, runId, options = {}) {
     };
 
     const b = await initBrowser();
-    const page = await b.newPage();
+    page = await b.newPage();
     page.setDefaultTimeout(timeouts.page_load);
     await page.setViewport({ width: 800, height: 800, deviceScaleFactor: 1 });
     
     await page.setRequestInterception(true);
     const rendererDir = path.resolve(__dirname);
+    const assetsDir = path.resolve(rendererDir, 'assets');
+    const allowedStaticAssets = new Set([
+        path.resolve(assetsDir, 'p5.min.js'),
+        path.resolve(assetsDir, 'p5.brush.min.js')
+    ]);
+
     page.on('request', request => {
         try {
             const url = request.url();
@@ -220,8 +384,19 @@ async function renderCode(code, seed, runId, options = {}) {
                         fileUrlPath = fileUrlPath.slice(1);
                     }
                     const resolvedFile = path.resolve(decodeURIComponent(fileUrlPath));
-                    const rel = path.relative(rendererDir, resolvedFile);
-                    if (!rel.startsWith('..') && !path.isAbsolute(rel)) {
+                    const relFromRenderer = path.relative(rendererDir, resolvedFile);
+                    
+                    // Deny any path traversal or files outside renderer directory
+                    if (relFromRenderer.startsWith('..') || path.isAbsolute(relFromRenderer)) {
+                        request.abort('accessdenied');
+                        return;
+                    }
+                    
+                    // Allow strictly the temporary HTML file and explicit static assets under rendererDir/assets
+                    const isTmpHtml = resolvedFile === path.resolve(tmpFile);
+                    const isAllowedAsset = allowedStaticAssets.has(resolvedFile) || (resolvedFile.startsWith(assetsDir + path.sep) && !path.relative(assetsDir, resolvedFile).startsWith('..'));
+
+                    if (isTmpHtml || isAllowedAsset) {
                         request.continue();
                     } else {
                         request.abort('accessdenied');
@@ -858,24 +1033,39 @@ setTimeout(function() {
                 fs.unlinkSync(tmpFile);
             }
         } catch (e) {}
+        if (page) {
+            try {
+                const closePromise = page.close().then(() => false).catch(() => false);
+                const closeTimeout = new Promise(resolve => setTimeout(() => resolve(true), 1500));
+                const timedOut = await Promise.race([closePromise, closeTimeout]);
+                if (timedOut) {
+                    // Page failed to close within timeout (e.g. unresponsive script / infinite loop)
+                    // Mark browser for recycling once all active renders drain
+                    recycleRequired = true;
+                    console.warn(`[WARN] Page close timed out for ${safeRunId}; browser marked for recycling once active renders drain.`);
+                }
+            } catch (e) {}
+        }
+        activeRenders--;
+        if (recycleRequired && activeRenders === 0) {
+            await scheduleRecycle();
+        }
+    }
+}
+
+async function closeBrowser(force = false) {
+    if (!force && activeRenders > 0) {
+        recycleRequired = true;
+        return;
+    }
+    recycleRequired = false;
+    if (browser) {
+        const b = browser;
+        browser = null;
         try {
-            const closePromise = page.close().then(() => false).catch(() => false);
-            const closeTimeout = new Promise(resolve => setTimeout(() => resolve(true), 1500));
-            const timedOut = await Promise.race([closePromise, closeTimeout]);
-            if (timedOut) {
-                // Page failed to close within timeout (e.g. unresponsive script / infinite loop)
-                // Recycle browser process to avoid leaking hung tabs
-                await closeBrowser();
-            }
+            await b.close();
         } catch (e) {}
     }
 }
 
-async function closeBrowser() {
-    if (browser) {
-        await browser.close().catch(() => {});
-        browser = null;
-    }
-}
-
-module.exports = { initBrowser, renderCode, closeBrowser };
+module.exports = { initBrowser, renderCode, closeBrowser, getActiveRenders, isRecycleRequired };

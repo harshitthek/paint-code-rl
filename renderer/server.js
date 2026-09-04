@@ -1,12 +1,12 @@
 const express = require('express');
-const { renderCode, closeBrowser } = require('./sandbox');
+const { renderCode, closeBrowser, getActiveRenders, isRecycleRequired } = require('./sandbox');
 
 const app = express();
 app.use(express.json({ limit: '5mb' }));
 
 const os = require('os');
 const MAX_INFLIGHT = 64;
-const CONCURRENT_WORKERS = Math.min(4, Math.max(2, (os.cpus() && os.cpus().length) || 4));
+const CONCURRENT_WORKERS = parseInt(process.env.CONCURRENT_WORKERS, 10) || Math.min(8, Math.max(2, (os.cpus() && os.cpus().length) || 4));
 
 async function mapConcurrent(items, limit, fn) {
     const results = new Array(items.length);
@@ -26,7 +26,7 @@ const RESTART_AFTER = 100;
 let recyclePromise = null;
 
 app.get('/health', (req, res) => {
-    res.json({ status: 'ok', inflight, jobsProcessed });
+    res.json({ status: 'ok', inflight, jobsProcessed, activeRenders: getActiveRenders() });
 });
 
 const SHUTDOWN_TOKEN = process.env.RENDERER_SHUTDOWN_TOKEN;
@@ -42,7 +42,7 @@ app.post('/shutdown', async (req, res) => {
     }
     res.json({ status: 'shutting_down' });
     setTimeout(async () => {
-        try { await closeBrowser(); } catch (e) {}
+        try { await closeBrowser(true); } catch (e) {}
         process.exit(0);
     }, 50);
 });
@@ -77,11 +77,11 @@ app.post('/render', async (req, res) => {
     } finally {
         inflight--;
         // Safely recycle browser only when no other requests are in flight
-        if (jobsProcessed >= RESTART_AFTER && inflight === 0 && !recyclePromise) {
+        if ((jobsProcessed >= RESTART_AFTER || isRecycleRequired()) && inflight === 0 && !recyclePromise) {
             console.log("Recycling browser safely (inflight === 0)...");
             recyclePromise = (async () => {
                 try {
-                    await closeBrowser();
+                    await closeBrowser(true);
                     jobsProcessed = 0;
                 } catch (e) {
                     console.error("Error recycling browser:", e);
@@ -138,10 +138,10 @@ app.post('/render_batch', async (req, res) => {
         res.json({ success: true, results });
     } finally {
         inflight -= items.length;
-        if (jobsProcessed >= RESTART_AFTER && inflight === 0 && !recyclePromise) {
+        if ((jobsProcessed >= RESTART_AFTER || isRecycleRequired()) && inflight === 0 && !recyclePromise) {
             recyclePromise = (async () => {
                 try {
-                    await closeBrowser();
+                    await closeBrowser(true);
                 } catch (e) {
                     console.error("Error recycling browser:", e);
                 } finally {

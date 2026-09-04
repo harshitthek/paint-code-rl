@@ -261,17 +261,27 @@ def apply_max_hardware_config(config):
         adjustments["mps_max_new_tokens"] = config.generation.max_new_tokens
         
     elif device_type == "cuda":
-        # CUDA: scale by VRAM
+        # CUDA: scale by VRAM and GPU count (Dual-GPU / Multi-GPU saturation)
         try:
-            vram_gb = torch.cuda.get_device_properties(0).total_memory / 1e9
+            device_count = torch.cuda.device_count() if torch.cuda.is_available() else 1
+            vram_per_gpu = [torch.cuda.get_device_properties(i).total_memory / 1e9 for i in range(device_count)] if torch.cuda.is_available() else [8.0]
+            total_vram_gb = sum(vram_per_gpu)
+            max_single_vram = max(vram_per_gpu) if vram_per_gpu else 8.0
         except Exception:
-            vram_gb = 8.0
+            device_count = 1
+            total_vram_gb = 8.0
+            max_single_vram = 8.0
+            vram_per_gpu = [8.0]
         
-        if vram_gb >= 40:  # A100
+        adjustments["cuda_devices"] = device_count
+        adjustments["cuda_vram_gb"] = round(max_single_vram, 1)
+        adjustments["cuda_total_vram_gb"] = round(total_vram_gb, 1)
+
+        if max_single_vram >= 40:  # A100 (40GB/80GB)
             config.training.group_size = 8
             config.training.batch_size = 8
             config.generation.max_new_tokens = 512
-        elif vram_gb >= 15:  # T4/V100
+        elif total_vram_gb >= 24 or max_single_vram >= 15:  # Dual T4 (2x16GB=32GB) or single T4/V100
             config.training.group_size = 6
             config.training.batch_size = 6
             config.generation.max_new_tokens = 450
@@ -279,8 +289,8 @@ def apply_max_hardware_config(config):
             config.training.group_size = 4
             config.training.batch_size = 4
             config.generation.max_new_tokens = 384
-        adjustments["cuda_vram_gb"] = round(vram_gb, 1)
         adjustments["cuda_group_size"] = config.training.group_size
+        adjustments["cuda_max_new_tokens"] = config.generation.max_new_tokens
         
     else:  # CPU
         # Maximize threads, keep small group_size (CPU generation is slow)

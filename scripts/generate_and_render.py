@@ -39,6 +39,14 @@ def get_device():
     return torch.device("cpu")
 
 
+def get_model_device(model, default_device):
+    """Safely resolve device for single-GPU or multi-GPU sharded model."""
+    try:
+        return next(model.parameters()).device
+    except Exception:
+        return getattr(model, "device", default_device)
+
+
 def build_gallery_html(renders: list, output_path: str):
     cards_html = ""
     for r in renders:
@@ -322,7 +330,7 @@ def main():
             )
             for p in prompts
         ]
-        target_device = model.device if hasattr(model, "device") else policy_device
+        target_device = get_model_device(model, policy_device)
         inputs = tokenizer(batch_texts, return_tensors="pt", padding=True).to(target_device)
         
         with torch.inference_mode():
@@ -360,7 +368,7 @@ def main():
             render_res = renderer.render(code, seed=42 + idx, prompt=p)
             return idx, p, code, render_res
 
-        workers = min(len(prompts), os.cpu_count() or 4)
+        workers = min(len(prompts), max(4, (os.cpu_count() or 2) * 2))
         with ThreadPoolExecutor(max_workers=workers) as executor:
             rendered_items = list(executor.map(render_worker, [(i, prompts[i], codes[i]) for i in range(len(prompts))]))
             
@@ -410,7 +418,7 @@ def main():
                 {"role": "user", "content": f"Create generative art in p5.js: {p}"}
             ]
             text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-            target_device = model.device if hasattr(model, "device") else policy_device
+            target_device = get_model_device(model, policy_device)
             inputs = tokenizer(text, return_tensors="pt").to(target_device)
             
             with torch.inference_mode():

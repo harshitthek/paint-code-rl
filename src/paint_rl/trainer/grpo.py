@@ -31,6 +31,13 @@ from paint_rl.utils.code_extractor import robust_extract_js_code
 def get_compute_device():
     """Device-agnostic compute device selector (CUDA, Apple MPS, CPU)."""
     if torch.cuda.is_available():
+        local_rank = int(os.environ.get("LOCAL_RANK", 0))
+        if local_rank < torch.cuda.device_count():
+            try:
+                torch.cuda.set_device(local_rank)
+            except Exception:
+                pass
+            return torch.device(f"cuda:{local_rank}")
         return torch.device("cuda")
     elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
         return torch.device("mps")
@@ -83,7 +90,8 @@ class PaintGRPOTrainer:
         elif self.device.type == "cuda":
             import torch
             try:
-                vram_gb = torch.cuda.get_device_properties(0).total_memory / 1e9
+                dev_idx = self.device.index if self.device.index is not None else 0
+                vram_gb = torch.cuda.get_device_properties(dev_idx).total_memory / 1e9
             except Exception:
                 vram_gb = 8.0
             if vram_gb >= 20:
@@ -104,7 +112,8 @@ class PaintGRPOTrainer:
         elif self.device.type == "cuda":
             import torch
             try:
-                vram_gb = torch.cuda.get_device_properties(0).total_memory / 1e9
+                dev_idx = self.device.index if self.device.index is not None else 0
+                vram_gb = torch.cuda.get_device_properties(dev_idx).total_memory / 1e9
             except Exception:
                 vram_gb = 8.0
             if vram_gb < 20.0 and config_model and config_model != device_model:
@@ -202,10 +211,15 @@ class PaintGRPOTrainer:
         clip_scorer = None
         try:
             clip_device = "cpu"
-            if torch.cuda.is_available() and torch.cuda.device_count() > 1:
-                clip_device = "cuda:1"
-            elif torch.cuda.is_available():
-                clip_device = "cuda:0"
+            if torch.cuda.is_available():
+                local_rank = int(os.environ.get("LOCAL_RANK", 0))
+                world_size = int(os.environ.get("WORLD_SIZE", 1))
+                if world_size > 1:
+                    clip_device = f"cuda:{local_rank}"
+                elif torch.cuda.device_count() > 1:
+                    clip_device = "cuda:1"
+                else:
+                    clip_device = "cuda:0"
             elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
                 clip_device = "mps"
             clip_scorer = CLIPAestheticScorer(device=clip_device)
@@ -291,7 +305,7 @@ class PaintGRPOTrainer:
                                 r = round(max(0.05, r * 0.15), 3)
 
                         rewards.append(r)
-                        if getattr(self, "_active_dashboard_writer", None):
+                        if getattr(self, "_active_dashboard_writer", None) and int(os.environ.get("LOCAL_RANK", 0)) == 0:
                             self._active_dashboard_writer.add_sample(
                                 prompt=p_txt,
                                 code=c_txt,
@@ -437,6 +451,7 @@ class PaintGRPOTrainer:
             grpo_kwargs["gradient_checkpointing_kwargs"] = {"use_reentrant": False}
             grpo_kwargs["fp16"] = not torch.cuda.is_bf16_supported()
             grpo_kwargs["bf16"] = torch.cuda.is_bf16_supported()
+            grpo_kwargs["ddp_find_unused_parameters"] = False
         else:
             grpo_kwargs["gradient_checkpointing"] = False
             grpo_kwargs["fp16"] = False
@@ -456,19 +471,26 @@ class PaintGRPOTrainer:
         
         train_result = self.trainer.train()
         
-        final_dir = os.path.join(output_dir, "final_adapter")
-        os.makedirs(final_dir, exist_ok=True)
-        self.trainer.save_model(final_dir)
-        print(f"[PaintGRPOTrainer] [OK] Model saved to {final_dir}")
-        
-        try:
-            from paint_rl.trainer.checkpoint_validator import CheckpointValidator
-            safetensors_path = os.path.join(final_dir, "adapter_model.safetensors")
-            if os.path.exists(safetensors_path):
-                CheckpointValidator.validate_safetensors(safetensors_path)
-                print(f"[PaintGRPOTrainer] [OK] Checkpoint validated: {safetensors_path}")
-        except Exception as e:
-            print(f"[PaintGRPOTrainer] [WARN] Checkpoint validation failed: {e}")
+        is_main_process = True
+        if hasattr(self.trainer, "accelerator"):
+            is_main_process = self.trainer.accelerator.is_main_process
+        elif "LOCAL_RANK" in os.environ:
+            is_main_process = int(os.environ["LOCAL_RANK"]) == 0
+
+        if is_main_process:
+            final_dir = os.path.join(output_dir, "final_adapter")
+            os.makedirs(final_dir, exist_ok=True)
+            self.trainer.save_model(final_dir)
+            print(f"[PaintGRPOTrainer] [OK] Model saved to {final_dir}")
+            
+            try:
+                from paint_rl.trainer.checkpoint_validator import CheckpointValidator
+                safetensors_path = os.path.join(final_dir, "adapter_model.safetensors")
+                if os.path.exists(safetensors_path):
+                    CheckpointValidator.validate_safetensors(safetensors_path)
+                    print(f"[PaintGRPOTrainer] [OK] Checkpoint validated: {safetensors_path}")
+            except Exception as e:
+                print(f"[PaintGRPOTrainer] [WARN] Checkpoint validation failed: {e}")
         
         self._clear_memory()
         return train_result
@@ -479,8 +501,9 @@ class PaintGRPOTrainer:
             self._repo_root, "artifacts", "checkpoints", "step_1_test"
         )
         batch_size, _ = self._get_safe_batch_params()
+        world_size = int(os.environ.get("WORLD_SIZE", 1))
         raw_dataset = self.load_dataset("train")
-        take_count = min(batch_size, len(raw_dataset))
+        take_count = min(batch_size * max(1, world_size), len(raw_dataset))
         dataset = raw_dataset.select(range(take_count))
         return self.train(max_steps=1, checkpoint_dir=checkpoint_dir, dataset=dataset)
 
@@ -588,6 +611,7 @@ class PaintGRPOTrainer:
                 grpo_kwargs["gradient_checkpointing_kwargs"] = {"use_reentrant": False}
                 grpo_kwargs["fp16"] = not torch.cuda.is_bf16_supported()
                 grpo_kwargs["bf16"] = torch.cuda.is_bf16_supported()
+                grpo_kwargs["ddp_find_unused_parameters"] = False
             else:
                 grpo_kwargs["gradient_checkpointing"] = False
                 grpo_kwargs["fp16"] = False
@@ -611,6 +635,12 @@ class PaintGRPOTrainer:
             if hasattr(self.trainer, "model") and self.trainer.model is not None:
                 self.model = self.trainer.model
             
+            is_main_process = True
+            if hasattr(self.trainer, "accelerator"):
+                is_main_process = self.trainer.accelerator.is_main_process
+            elif "LOCAL_RANK" in os.environ:
+                is_main_process = int(os.environ["LOCAL_RANK"]) == 0
+
             # Extract real RL training metrics from log history
             log_hist = self.trainer.state.log_history if hasattr(self.trainer, "state") and self.trainer.state else []
             rewards_list = [entry["reward"] for entry in log_hist if "reward" in entry]
@@ -633,16 +663,17 @@ class PaintGRPOTrainer:
             }
             all_metrics.append(cycle_metric)
             
-            print(f"\n  [Cycle {cycle_num} Summary] Steps: {total_steps_done} | Mean Reward: {mean_reward:.3f} | Grad Norm: {mean_grad_norm:.4f} | Temp: {current_temp:.3f}")
+            if is_main_process:
+                print(f"\n  [Cycle {cycle_num} Summary] Steps: {total_steps_done} | Mean Reward: {mean_reward:.3f} | Grad Norm: {mean_grad_norm:.4f} | Temp: {current_temp:.3f}")
             
-            if dashboard_writer:
+            if dashboard_writer and is_main_process:
                 dashboard_writer.update(all_metrics)
             
             cycles_to_run -= 1
             if cycles_to_run > 0:
                 continue
             
-            if unattended:
+            if unattended or not is_main_process:
                 if max_steps and total_steps_done >= max_steps:
                     break
                 cycles_to_run = 1
@@ -665,19 +696,20 @@ class PaintGRPOTrainer:
                 cycles_to_run = 1
         
         final_dir = os.path.join(output_dir, "final_adapter")
-        os.makedirs(final_dir, exist_ok=True)
-        if self.trainer:
-            self.trainer.save_model(final_dir)
-            print(f"[PaintGRPOTrainer] [OK] Final checkpoint saved to {final_dir}")
-        
-        from paint_rl.trainer.checkpoint_validator import CheckpointValidator
-        safetensors_path = os.path.join(final_dir, "adapter_model.safetensors")
-        if os.path.exists(safetensors_path):
-            try:
-                CheckpointValidator.validate_safetensors(safetensors_path)
-                print(f"[PaintGRPOTrainer] [OK] Checkpoint validated: {safetensors_path}")
-            except Exception as e:
-                print(f"[PaintGRPOTrainer] [WARN] Checkpoint validation failed: {e}")
+        if is_main_process:
+            os.makedirs(final_dir, exist_ok=True)
+            if self.trainer:
+                self.trainer.save_model(final_dir)
+                print(f"[PaintGRPOTrainer] [OK] Final checkpoint saved to {final_dir}")
+            
+            from paint_rl.trainer.checkpoint_validator import CheckpointValidator
+            safetensors_path = os.path.join(final_dir, "adapter_model.safetensors")
+            if os.path.exists(safetensors_path):
+                try:
+                    CheckpointValidator.validate_safetensors(safetensors_path)
+                    print(f"[PaintGRPOTrainer] [OK] Checkpoint validated: {safetensors_path}")
+                except Exception as e:
+                    print(f"[PaintGRPOTrainer] [WARN] Checkpoint validation failed: {e}")
         
         self._clear_memory()
         

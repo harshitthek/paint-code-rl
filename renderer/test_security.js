@@ -68,6 +68,30 @@ async function run() {
             }`,
             expect: "NO_CANVAS",
             runId: "sec_test_tamper"
+        },
+        {
+            name: "Local Source Exfiltration Prevention (server.js)",
+            code: `function setup() {
+                createCanvas(100, 100, WEBGL);
+                background(100);
+                fetch('server.js').then(r => r.text()).catch(() => {});
+            }`,
+            expect: "SUCCESS",
+            runId: "sec_test_local_server"
+        },
+        {
+            name: "Delimiters in Ignored Contexts (Lexer Defense)",
+            code: `function setup() {
+                createCanvas(100, 100, WEBGL);
+                let str = "unmatched string ( { [";
+                let re = /[{()}]/g;
+                let tmpl = \`unmatched template ( { [\`;
+                // single comment with ( and {
+                /* multi comment with ( and { */
+                background(120);
+            }`,
+            expect: "SUCCESS",
+            runId: "sec_test_lexer_delims"
         }
     ];
     
