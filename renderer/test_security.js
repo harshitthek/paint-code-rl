@@ -74,9 +74,10 @@ async function run() {
             code: `function setup() {
                 createCanvas(100, 100, WEBGL);
                 background(100);
-                fetch('server.js').then(r => r.text()).catch(() => {});
+                fetch('server.js').then(r => r.text()).then(t => console.log('EXFIL_SENTINEL:' + t)).catch(() => {});
             }`,
             expect: "SUCCESS",
+            validate: (res) => !(res.console_logs || []).some(l => l.includes('EXFIL_SENTINEL')),
             runId: "sec_test_local_server"
         },
         {
@@ -88,6 +89,8 @@ async function run() {
                 let tmpl = \`unmatched template ( { [\`;
                 // single comment with ( and {
                 /* multi comment with ( and { */
+                let ok = true;
+                if (ok) /{/.test("sample");
                 background(120);
             }`,
             expect: "SUCCESS",
@@ -102,7 +105,10 @@ async function run() {
         process.stdout.write(`  [TEST] ${c.name.padEnd(45, '.')}`);
         const result = await renderCode(c.code, 42, c.runId, c.options || {});
         
-        if (result.error_classification === c.expect) {
+        const isClassificationMatch = result.error_classification === c.expect;
+        const isValidationMatch = !c.validate || c.validate(result);
+
+        if (isClassificationMatch && isValidationMatch) {
             console.log(` [PASS] (Got: ${result.error_classification})`);
             passedCount++;
         } else {

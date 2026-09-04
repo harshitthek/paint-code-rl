@@ -559,9 +559,10 @@ class PaintGRPOTrainer:
         cycles_to_run = 1
         all_metrics = []
         
+        lr = self.config.training.learning_rate if self.config and hasattr(self.config, 'training') and self.config.training else 5e-6
         print("\n[PaintGRPOTrainer] Cyclic Training Started")
         print(f"  Steps/cycle: {steps_per_cycle} | Batch: {batch_size} | Group: {num_gens}")
-        print(f"  Max tokens: {max_new_tokens} | Device: {self.device}")
+        print(f"  Max tokens: {max_new_tokens} | Device: {self.device} | LR: {lr}")
         print(f"  Mode: {'Unattended' if unattended else 'Interactive'}")
         self._active_dashboard_writer = dashboard_writer
         
@@ -579,7 +580,7 @@ class PaintGRPOTrainer:
             current_temp = self.compute_temperature(total_steps_done)
             print("=" * 60)
             print(f"  CYCLE {cycle_num}: Steps {total_steps_done + 1} -> {total_steps_done + cycle_steps}")
-            print(f"  Target Temperature: {current_temp:.3f} | LR: 5e-6")
+            print(f"  Target Temperature: {current_temp:.3f} | LR: {lr}")
             print("=" * 60)
             
             self._clear_memory()
@@ -588,7 +589,7 @@ class PaintGRPOTrainer:
             
             grpo_kwargs = {
                 "output_dir": output_dir,
-                "learning_rate": 5e-6,
+                "learning_rate": lr,
                 "per_device_train_batch_size": prompt_batch_size,
                 "gradient_accumulation_steps": grad_accum,
                 "num_generations": num_gens,

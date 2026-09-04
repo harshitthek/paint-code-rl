@@ -26,4 +26,4 @@ COPY . .
 
 # Run the API service
 EXPOSE 3000
-CMD ["node", "renderer/server.js"]
+CMD ["node", "-e", "if (!process.env.RENDERER_SHUTDOWN_TOKEN) process.env.RENDERER_SHUTDOWN_TOKEN = require('crypto').randomBytes(16).toString('hex'); require('./renderer/server.js');"]

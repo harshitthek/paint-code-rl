@@ -48,26 +48,35 @@ def get_model_device(model, default_device):
 
 
 def build_gallery_html(renders: list, output_path: str):
+    import html
     cards_html = ""
     for r in renders:
+        prompt_escaped = html.escape(str(r.get('prompt', '')))
+        status_escaped = html.escape(str(r.get('status', 'UNKNOWN')))
+        error_escaped = html.escape(str(r.get('error', 'Canvas Error') or 'Canvas Error'))
+        rel_img = html.escape(str(r.get("rel_image_path", "") or ""))
+        code_escaped = html.escape(str(r.get('code', '')))
+        seed_escaped = html.escape(str(r.get('seed', 42)))
+        render_ms_escaped = html.escape(str(r.get('render_ms', 0)))
+
         img_tag = (
-            f'<img src="{r["rel_image_path"]}" alt="Render" class="render-img" />'
+            f'<img src="{rel_img}" alt="Render" class="render-img" />'
             if r.get("rel_image_path")
-            else f'<div class="error-box">Render Status: {r.get("status", "Failed")} <br><small>{r.get("error", "Canvas Error")}</small></div>'
+            else f'<div class="error-box">Render Status: {status_escaped} <br><small>{error_escaped}</small></div>'
         )
         cards_html += f"""
         <div class="card">
-            <h3>🎨 {r['prompt']}</h3>
+            <h3>🎨 {prompt_escaped}</h3>
             <div class="card-body">
                 <div class="img-container">{img_tag}</div>
                 <div class="code-container">
-                    <pre><code>{r['code'].replace('<', '&lt;').replace('>', '&gt;')}</code></pre>
+                    <pre><code>{code_escaped}</code></pre>
                 </div>
             </div>
             <div class="meta">
-                <span>⚡ Latency: {r.get('render_ms', 0)}ms</span>
-                <span>🌱 Seed: {r.get('seed', 42)}</span>
-                <span>📋 Status: <strong>{r.get('status', 'UNKNOWN')}</strong></span>
+                <span>⚡ Latency: {render_ms_escaped}ms</span>
+                <span>🌱 Seed: {seed_escaped}</span>
+                <span>📋 Status: <strong>{status_escaped}</strong></span>
             </div>
         </div>
         """

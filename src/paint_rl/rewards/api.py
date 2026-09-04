@@ -60,9 +60,11 @@ def _get_composer() -> RewardComposer:
 
     # Get weights from config
     if config is not None:
-        w_compile = config.reward.weights.compile
-        w_aesthetic = config.reward.weights.hpsv3  # Named hpsv3 in config for backward compat
-        w_pairwise = config.reward.weights.pairwise
+        w_compile = config.reward.weights.compile if getattr(config.reward.weights, "compile", None) is not None else 0.10
+        w_aesthetic = getattr(config.reward.weights, "hpsv3", None)
+        if w_aesthetic is None:
+            w_aesthetic = getattr(config.reward.weights, "aesthetic", None)
+        w_pairwise = getattr(config.reward.weights, "pairwise", None)
     else:
         # Defaults matching base.yaml
         w_compile = 0.10
@@ -70,25 +72,27 @@ def _get_composer() -> RewardComposer:
         w_pairwise = 0.60
 
     # Create components
-    compile_component = CompileRewardComponent(weight=w_compile)
+    compile_component = CompileRewardComponent(weight=float(w_compile))
 
-    # Aesthetic scorer — lazy, fail-closed
+    # Aesthetic scorer — lazy, fail-closed (skip if null or <= 0)
     aesthetic_component = None
-    try:
-        from .aesthetic import create_aesthetic_scorer
-        scorer = create_aesthetic_scorer(config)
-        aesthetic_component = AestheticRewardComponent(weight=w_aesthetic, scorer=scorer)
-    except Exception as e:
-        print(f"[WARN] Aesthetic scorer unavailable: {e}. Aesthetic reward will be 0.")
+    if w_aesthetic is not None and float(w_aesthetic) > 0:
+        try:
+            from .aesthetic import create_aesthetic_scorer
+            scorer = create_aesthetic_scorer(config)
+            aesthetic_component = AestheticRewardComponent(weight=float(w_aesthetic), scorer=scorer)
+        except Exception as e:
+            print(f"[WARN] Aesthetic scorer unavailable: {e}. Aesthetic reward will be 0.")
 
-    # Pairwise judge — lazy, mode-aware
+    # Pairwise judge — lazy, mode-aware (skip if null or <= 0)
     pairwise_component = None
-    try:
-        from paint_rl.judges.providers import create_judge_provider
-        judge = create_judge_provider(config)
-        pairwise_component = PairwiseRewardComponent(weight=w_pairwise, judge_provider=judge)
-    except Exception as e:
-        print(f"[WARN] Judge provider unavailable: {e}. Pairwise reward will be 0.")
+    if w_pairwise is not None and float(w_pairwise) > 0:
+        try:
+            from paint_rl.judges.providers import create_judge_provider
+            judge = create_judge_provider(config)
+            pairwise_component = PairwiseRewardComponent(weight=float(w_pairwise), judge_provider=judge)
+        except Exception as e:
+            print(f"[WARN] Judge provider unavailable: {e}. Pairwise reward will be 0.")
 
     components = [compile_component]
     if aesthetic_component:

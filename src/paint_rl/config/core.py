@@ -281,7 +281,7 @@ def apply_max_hardware_config(config):
             config.training.group_size = 8
             config.training.batch_size = 8
             config.generation.max_new_tokens = 512
-        elif total_vram_gb >= 24 or max_single_vram >= 15:  # Dual T4 (2x16GB=32GB) or single T4/V100
+        elif max_single_vram >= 15:  # T4/V100 (16GB)
             config.training.group_size = 6
             config.training.batch_size = 6
             config.generation.max_new_tokens = 450

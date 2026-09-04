@@ -12,6 +12,7 @@ function balanceTokens(jsCode) {
     let i = 0;
     const len = jsCode.length;
     let lastToken = '';
+    const parenStack = [];
 
     while (i < len) {
         const char = jsCode[i];
@@ -23,7 +24,6 @@ function balanceTokens(jsCode) {
             while (i < len && jsCode[i] !== '\n') {
                 i++;
             }
-            lastToken = 'comment';
             continue;
         }
 
@@ -34,7 +34,6 @@ function balanceTokens(jsCode) {
                 i++;
             }
             i += 2;
-            lastToken = 'comment';
             continue;
         }
 
@@ -73,7 +72,9 @@ function balanceTokens(jsCode) {
 
         // 5. Regular expression literal: /pattern/flags
         if (char === '/') {
-            const isRegex = !lastToken || /^(?:[=({\[,:;!&|?+\-*%^~]|\b(?:return|case|typeof|yield|await|delete|throw|instanceof|in))$/.test(lastToken);
+            const isRegex = !lastToken || 
+                lastToken === ')_control' ||
+                /^(?:[=({\[,:;!&|?+\-*%^~<>]|\b(?:return|case|typeof|yield|await|delete|throw|instanceof|in|void|do|else))$/.test(lastToken);
             if (isRegex) {
                 i++;
                 let inClass = false;
@@ -104,10 +105,13 @@ function balanceTokens(jsCode) {
         if (!/\s/.test(char)) {
             if (char === '(') {
                 openP++;
+                const isControl = /^(?:if|while|for|with)$/.test(lastToken);
+                parenStack.push(isControl ? 'control' : 'expr');
                 lastToken = '(';
             } else if (char === ')') {
                 if (openP > 0) openP--;
-                lastToken = ')';
+                const pType = parenStack.pop() || 'expr';
+                lastToken = (pType === 'control') ? ')_control' : ')';
             } else if (char === '{') {
                 openB++;
                 lastToken = '{';
@@ -351,6 +355,10 @@ async function renderCode(code, seed, runId, options = {}) {
 
     // Security: sanitize runId to prevent directory traversal
     const safeRunId = String(runId || 'render_' + Date.now()).replace(/[^a-zA-Z0-9_-]/g, '_');
+    const tmpFile = path.resolve(__dirname, `tmp_${safeRunId}.html`);
+    let error_classification = 'SUCCESS';
+    let runtime_error = null;
+    let console_logs = [];
     
     const timeouts = {
         browser_startup: options.browser_startup_timeout_ms || 25000,
@@ -359,84 +367,78 @@ async function renderCode(code, seed, runId, options = {}) {
         screenshot: options.screenshot_timeout_ms || 8000
     };
 
-    const b = await initBrowser();
-    page = await b.newPage();
-    page.setDefaultTimeout(timeouts.page_load);
-    await page.setViewport({ width: 800, height: 800, deviceScaleFactor: 1 });
-    
-    await page.setRequestInterception(true);
-    const rendererDir = path.resolve(__dirname);
-    const assetsDir = path.resolve(rendererDir, 'assets');
-    const allowedStaticAssets = new Set([
-        path.resolve(assetsDir, 'p5.min.js'),
-        path.resolve(assetsDir, 'p5.brush.min.js')
-    ]);
+    try {
+        const b = await initBrowser();
+        page = await b.newPage();
+        page.setDefaultTimeout(timeouts.page_load);
+        await page.setViewport({ width: 800, height: 800, deviceScaleFactor: 1 });
+        
+        await page.setRequestInterception(true);
+        const rendererDir = path.resolve(__dirname);
+        const assetsDir = path.resolve(rendererDir, 'assets');
+        const allowedStaticAssets = new Set([
+            path.resolve(assetsDir, 'p5.min.js'),
+            path.resolve(assetsDir, 'p5.brush.min.js')
+        ]);
 
-    page.on('request', request => {
-        try {
-            const url = request.url();
-            if (url.startsWith('data:')) {
-                request.continue();
-            } else if (url.startsWith('file://')) {
-                try {
-                    let fileUrlPath = new URL(url).pathname;
-                    if (process.platform === 'win32' && fileUrlPath.startsWith('/')) {
-                        fileUrlPath = fileUrlPath.slice(1);
-                    }
-                    const resolvedFile = path.resolve(decodeURIComponent(fileUrlPath));
-                    const relFromRenderer = path.relative(rendererDir, resolvedFile);
-                    
-                    // Deny any path traversal or files outside renderer directory
-                    if (relFromRenderer.startsWith('..') || path.isAbsolute(relFromRenderer)) {
-                        request.abort('accessdenied');
-                        return;
-                    }
-                    
-                    // Allow strictly the temporary HTML file and explicit static assets under rendererDir/assets
-                    const isTmpHtml = resolvedFile === path.resolve(tmpFile);
-                    const isAllowedAsset = allowedStaticAssets.has(resolvedFile) || (resolvedFile.startsWith(assetsDir + path.sep) && !path.relative(assetsDir, resolvedFile).startsWith('..'));
+        page.on('request', request => {
+            try {
+                const url = request.url();
+                if (url.startsWith('data:')) {
+                    request.continue();
+                } else if (url.startsWith('file://')) {
+                    try {
+                        let fileUrlPath = new URL(url).pathname;
+                        if (process.platform === 'win32' && fileUrlPath.startsWith('/')) {
+                            fileUrlPath = fileUrlPath.slice(1);
+                        }
+                        const resolvedFile = path.resolve(decodeURIComponent(fileUrlPath));
+                        const relFromRenderer = path.relative(rendererDir, resolvedFile);
+                        
+                        // Deny any path traversal or files outside renderer directory
+                        if (relFromRenderer.startsWith('..') || path.isAbsolute(relFromRenderer)) {
+                            request.abort('accessdenied');
+                            return;
+                        }
+                        
+                        // Allow strictly the temporary HTML file and explicit static assets under rendererDir/assets
+                        const isTmpHtml = resolvedFile === path.resolve(tmpFile);
+                        const isAllowedAsset = allowedStaticAssets.has(resolvedFile) || (resolvedFile.startsWith(assetsDir + path.sep) && !path.relative(assetsDir, resolvedFile).startsWith('..'));
 
-                    if (isTmpHtml || isAllowedAsset) {
-                        request.continue();
-                    } else {
+                        if (isTmpHtml || isAllowedAsset) {
+                            request.continue();
+                        } else {
+                            request.abort('accessdenied');
+                        }
+                    } catch (e) {
                         request.abort('accessdenied');
                     }
-                } catch (e) {
+                } else {
                     request.abort('accessdenied');
                 }
-            } else {
-                request.abort('accessdenied');
+            } catch (err) {
+                // Request may have already been handled
             }
-        } catch (err) {
-            // Request may have already been handled
-        }
-    });
+        });
 
-    let error_classification = 'SUCCESS';
-    let runtime_error = null;
-    let console_logs = [];
+        page.on('console', msg => {
+            console_logs.push(`[${msg.type()}] ${msg.text()}`);
+        });
 
-    page.on('console', msg => {
-        console_logs.push(`[${msg.type()}] ${msg.text()}`);
-    });
+        page.on('pageerror', err => {
+            const errStr = err.toString();
+            if (runtime_error) {
+                runtime_error += "\n" + errStr;
+            } else {
+                runtime_error = errStr;
+            }
+            if (errStr.includes('SyntaxError')) {
+                error_classification = 'PARSE_ERROR';
+            } else {
+                error_classification = 'RUNTIME_ERROR';
+            }
+        });
 
-    page.on('pageerror', err => {
-        const errStr = err.toString();
-        if (runtime_error) {
-            runtime_error += "\n" + errStr;
-        } else {
-            runtime_error = errStr;
-        }
-        if (errStr.includes('SyntaxError')) {
-            error_classification = 'PARSE_ERROR';
-        } else {
-            error_classification = 'RUNTIME_ERROR';
-        }
-    });
-
-    const tmpFile = path.resolve(__dirname, `tmp_${safeRunId}.html`);
-
-    try {
         const templatePath = path.resolve(__dirname, 'template.html');
         let htmlContent = fs.readFileSync(templatePath, 'utf8');
         
