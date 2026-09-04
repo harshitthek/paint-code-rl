@@ -11,6 +11,26 @@
 
 ---
 
+## 📖 About
+
+`paint-code-rl` is an open-source research platform investigating a central challenge in creative artificial intelligence: **Can a code-generation language model learn to create authentic, compelling visual art using reinforcement learning from verifiable visual feedback?**
+
+### Why Code-Based Art Over Pixel Diffusion?
+* **Infinite Resolution & Vector Scaling**: Unlike diffusion models that output fixed-dimension raster grids, code written in `p5.js` and `p5.brush` is resolution-independent, mathematically precise, and vector-scalable.
+* **Parametric & Interactive**: Artists can directly edit seeds, brush textures, flow fields, and color palettes after generation, or animate them in real-time WebGL canvas viewports.
+* **Compact & Interpretable**: An entire complex artwork is represented in fewer than 200 lines of human-readable JavaScript rather than multi-gigabyte pixel tensors.
+
+### The Problem: Syntax Validity vs. Visual Quality
+Standard code models frequently generate programs that compile without syntax errors but produce visually degenerate outputs — empty canvases, single unrendered pixels, or microscopic black dots. Text-only loss functions and conventional unit tests cannot distinguish between a blank screen and an intricate watercolor landscape.
+
+### How `paint-code-rl` Solves It
+1. **Sandboxed Headless WebGL Execution**: An ephemeral Puppeteer daemon executes generated p5.js scripts with WebGL2/SwiftShader acceleration, streaming rendered canvas buffers into in-memory image pipelines.
+2. **5-Tier Verifiable Visual Reward Matrix**: Computes composite multi-signal rewards evaluating compile success, CLIP semantic alignment, edge richness via Laplacian variance ($\nabla^2 I$), natural media brush mechanics, and aesthetic harmony with anti-cheat filters.
+3. **Group Relative Policy Optimization (GRPO)**: Directly trains policy models (e.g. Qwen2.5-Coder) with mathematical group advantage normalization, eliminating the memory overhead of a separate critic network.
+4. **Interactive Cyclic Continuous Training**: Supports human-in-the-loop training with dynamic temperature annealing ($T=0.85 \rightarrow 0.55$), multi-GPU hardware saturation (`--max`), explainable scorecards, and an auto-refreshing live HTML dashboard.
+
+---
+
 ## 🌟 Project Status
 
 ```text
