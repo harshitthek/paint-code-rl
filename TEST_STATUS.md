@@ -1,10 +1,10 @@
 # Test Status & Verification Report
 
-**Total Test Count:** 143 / 143 Passed (100% Green)
+**Total Test Count:** 148 / 148 Passed (100% Green)
 
 ---
 
-## 1. Python Pytest Suite (`pytest tests/ -v`) — 104/104 Passed
+## 1. Python Pytest Suite (`pytest tests/ -v`) — 107/107 Passed
 
 | Test Module | Tests | Status | Description |
 | :--- | :--- | :--- | :--- |
@@ -14,11 +14,11 @@
 | `tests/test_rewards.py` | 36 | `PASSED` | 5-tier visual reward matrix, cache operations, model registry, judge providers, telemetry |
 | `tests/test_soup_integration.py` | 3 | `PASSED` | Preflight, reward validation, async rollout |
 | `tests/test_hardening.py` | 3 | `PASSED` | Checkpoint validation, cache integrity, config schema |
-| `tests/test_tight_hardening.py` | 25 | `PASSED` | Floating-point numerical guarantees, bounded rewards, fail-closed components |
+| `tests/test_tight_hardening.py` | 28 | `PASSED` | Floating-point numerical guarantees, bounded rewards, fail-closed components |
 
 ---
 
-## 2. Node.js Security Smoke Suite (`npm test`) — 8/8 Passed
+## 2. Node.js Security Smoke Suite (`npm test`) — 10/10 Passed
 
 | Security Smoke Test | Expected Output | Status | Protection Verified |
 | :--- | :--- | :--- | :--- |
@@ -30,6 +30,8 @@
 | **Signal Tampering Resilience** | `SUCCESS` | `PASSED` | Configurable property and proxy get-trap verification |
 | **Directory Traversal in `runId`** | `SUCCESS` | `PASSED` | Sanitizes `runId` preventing path escaping |
 | **Canvas Removal & Tampering** | `NO_CANVAS` | `PASSED` | Detects hidden/tampered canvas elements |
+| **Local Source Exfiltration Prevention** | `SUCCESS` | `PASSED` | Interception blocks attempts to read server source code (`server.js`) |
+| **Delimiters in Ignored Contexts (Lexer Defense)** | `SUCCESS` | `PASSED` | State-aware tokenizer ignores delimiters inside strings, templates, and regex literals |
 
 ---
 

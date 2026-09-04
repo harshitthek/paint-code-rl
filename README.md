@@ -11,9 +11,9 @@ STATUS:
 Phase-0 Research Prototype — Production Hardened & Multi-Signal Shaped
 
 Test Coverage:
-143/143 TESTS PASSING (100% GREEN)
-  - 104 Python Unit, Integration, Hardening & Telemetry Tests (pytest)
-  - 8 Node.js Sandbox Security Smoke Tests (npm test)
+148/148 TESTS PASSING (100% GREEN)
+  - 107 Python Unit, Integration, Hardening & Telemetry Tests (pytest)
+  - 10 Node.js Sandbox Security Smoke Tests (npm test)
   - 10 WebGL / p5.brush Visual Corpus Tests (node renderer/test_corpus.js)
   - 21 WebGL Adversarial Stress Tests (node renderer/test_adversarial_corpus.js)
 
@@ -92,13 +92,14 @@ cd ..
 
 ### 3. Run Automated Tests
 ```bash
-# Full test suite (78 pytest tests: unit, rewards, edge cases, XSS protection)
+# Full Python test suite (107 pytest tests: unit, rewards, edge cases, numerical hardening)
 python -m pytest tests/ -v
 
-# Renderer security smoke tests and 10-sketch visual corpus (18 tests)
+# Renderer security smoke tests (10 tests), visual corpus (10 tests), and adversarial stress suite (21 tests)
 cd renderer
 npm test
 node test_corpus.js
+node test_adversarial_corpus.js
 cd ..
 ```
 
@@ -117,6 +118,9 @@ python scripts/train_grpo.py --mode train --steps-per-cycle 50 --max-steps 500 -
 
 # 3. 1-Step hardware validation sanity check
 python scripts/train_grpo.py --mode one_step
+
+# 4. Generate artwork gallery & evaluate model checkpoints
+python scripts/generate_and_render.py --model Qwen/Qwen2.5-Coder-1.5B-Instruct --checkpoint-dir artifacts/checkpoints --max
 ```
 
 ### Key CLI Flags:
@@ -141,7 +145,7 @@ When `--dashboard` is enabled during training, open `artifacts/dashboard.html` i
 ### Architecture & System Design
 - [System Architecture Specification](docs/architecture/SYSTEM_ARCHITECTURE.md) — Comprehensive end-to-end subsystem specifications and dataflows.
 - [Adversarial Red-Team & Architecture Synthesis](docs/research/ARCHITECTURAL_REDTEAM_AND_SYNTHESIS.md) — Analysis of 5 naive anti-patterns and battle-tested solutions.
-- [Test Status & Verification Report](TEST_STATUS.md) — 96-test verification breakdown.
+- [Test Status & Verification Report](TEST_STATUS.md) — 148-test verification breakdown.
 - [Final Implementation Status](FINAL_IMPLEMENTATION_STATUS.md) — Component status and verification matrix.
 
 ### Architecture Decision Records (ADRs)
