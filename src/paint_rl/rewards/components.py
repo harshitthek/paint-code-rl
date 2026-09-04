@@ -18,6 +18,12 @@ class RewardResult:
 
 
 class RewardComponent(ABC):
+    _weight: float = 1.0
+
+    @property
+    def weight(self) -> float:
+        return getattr(self, "_weight", 1.0)
+
     @property
     @abstractmethod
     def name(self) -> str: ...
@@ -32,7 +38,7 @@ class RewardComponent(ABC):
 
 class CompileRewardComponent(RewardComponent):
     """Verifiable execution gate: evaluates whether the JavaScript code rendered a canvas."""
-    def __init__(self, weight: float = 0.15):
+    def __init__(self, weight: float = 0.10):
         self._weight = weight
         
     @property
@@ -168,7 +174,7 @@ class BrushUtilizationRewardComponent(RewardComponent):
 
 class AestheticRewardComponent(RewardComponent):
     """Global aesthetic harmony reward."""
-    def __init__(self, weight: float = 0.10, scorer=None):
+    def __init__(self, weight: float = 0.15, scorer=None):
         self._weight = weight
         self.scorer = scorer
         
@@ -207,7 +213,7 @@ class AestheticRewardComponent(RewardComponent):
 
 class PairwiseRewardComponent(RewardComponent):
     """Relative visual preference reward via local/cloud VLM."""
-    def __init__(self, weight: float = 0.60, judge_provider=None):
+    def __init__(self, weight: float = 0.0, judge_provider=None):
         self._weight = weight
         self.judge = judge_provider
         

@@ -11,8 +11,9 @@ import os
 import sys
 import argparse
 
-# Set MPS fallback BEFORE any torch/transformers imports
+# Set MPS fallback and memory allocation flags BEFORE any torch/transformers imports
 os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
+os.environ.setdefault("PYTORCH_MPS_HIGH_WATERMARK_RATIO", "0.8")
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
@@ -65,20 +66,58 @@ def main():
                         help='Skip renderer startup (syntax reward only)')
     args = parser.parse_args()
     
-    _print_system_info()
+    # Multi-GPU saturation under --max:
+    # If multiple CUDA GPUs are available, mode is 'train' or 'one_step', and not already inside torchrun/distributed runner,
+    # automatically re-exec under torch.distributed.run for distributed multi-GPU training at full hardware efficiency!
+    import torch
+    if (
+        args.max
+        and torch.cuda.is_available()
+        and torch.cuda.device_count() > 1
+        and "LOCAL_RANK" not in os.environ
+        and not os.environ.get("DISABLE_TORCHRUN")
+    ):
+        import subprocess
+        num_gpus = torch.cuda.device_count()
+        print(f"\n🚀 [--max] Detected {num_gpus} CUDA GPUs! Spawning distributed runner across all {num_gpus} GPUs...")
+        cmd = [
+            sys.executable,
+            "-m",
+            "torch.distributed.run",
+            f"--nproc_per_node={num_gpus}",
+            "--master_port=29500",
+            os.path.abspath(__file__),
+            *sys.argv[1:]
+        ]
+        res = subprocess.run(cmd)
+        sys.exit(res.returncode)
+
+    local_rank = int(os.environ.get("LOCAL_RANK", 0))
+    if local_rank == 0:
+        _print_system_info()
     
     # Start renderer (unless explicitly skipped)
     renderer = None
     if not args.no_renderer:
         from paint_rl.renderer.manager import RendererService
+        import time
         renderer = RendererService(port=3000)
-        print("Starting renderer daemon...")
-        if renderer.ensure_started(max_wait_sec=15):
-            print("[OK] Renderer ready")
+        if local_rank == 0:
+            print("Starting renderer daemon...")
+            if renderer.ensure_started(max_wait_sec=15):
+                print("[OK] Renderer ready")
+            else:
+                print("[WARN] Renderer failed to start (will use syntax reward only)")
+                print("   Fix: cd renderer && npm install && node server.js")
+                renderer = None
         else:
-            print("[WARN] Renderer failed to start (will use syntax reward only)")
-            print("   Fix: cd renderer && npm install && node server.js")
-            renderer = None
+            # Secondary ranks wait for rank 0 to establish the renderer daemon
+            for _ in range(30):
+                if renderer.is_healthy():
+                    break
+                time.sleep(0.5)
+            if not renderer.is_healthy():
+                renderer = None
     
     # Load config (auto-detects MPS and merges overlay)
     from paint_rl.config.core import ACTIVE_CONFIG, apply_max_hardware_config
@@ -86,25 +125,30 @@ def main():
     
     if args.max:
         adjustments = apply_max_hardware_config(ACTIVE_CONFIG)
-        print(f"[--max] Hardware saturated: {adjustments}")
+        if local_rank == 0:
+            print(f"[--max] Hardware saturated: {adjustments}")
     
     trainer = PaintGRPOTrainer(config=ACTIVE_CONFIG, renderer_service=renderer)
     
-    print(f"\nDevice: {trainer.device}")
-    print(f"Model: {trainer._resolve_model_id()}")
-    print(f"Dtype: {trainer._get_dtype()}")
-    batch_size, group_size = trainer._get_safe_batch_params()
-    print(f"Batch size: {batch_size} | Group size: {group_size}")
-    print(f"Max tokens: {trainer._get_max_new_tokens()}")
-    print()
+    if local_rank == 0:
+        print(f"\nDevice: {trainer.device}")
+        print(f"Model: {trainer._resolve_model_id()}")
+        print(f"Dtype: {trainer._get_dtype()}")
+        batch_size, group_size = trainer._get_safe_batch_params()
+        print(f"Batch size: {batch_size} | Group size: {group_size}")
+        print(f"Max tokens: {trainer._get_max_new_tokens()}")
+        print()
     
     if args.mode == 'one_step':
-        print("Running 1-step hardware validation...")
+        if local_rank == 0:
+            print("Running 1-step hardware validation...")
         result = trainer.one_step_test()
-        print("\n[OK] 1-step GRPO validation COMPLETE")
-        print(f"   Training loss: {result.training_loss:.4f}")
+        if local_rank == 0:
+            print("\n[OK] 1-step GRPO validation COMPLETE")
+            print(f"   Training loss: {result.training_loss:.4f}")
     else:
-        print(f"Starting cyclic training (steps_per_cycle={args.steps_per_cycle}, max_steps={args.max_steps})...")
+        if local_rank == 0:
+            print(f"Starting cyclic training (steps_per_cycle={args.steps_per_cycle}, max_steps={args.max_steps})...")
         result = trainer.train_cyclic(
             steps_per_cycle=args.steps_per_cycle,
             max_steps=args.max_steps,
@@ -112,8 +156,9 @@ def main():
             unattended=args.unattended,
             enable_dashboard=args.dashboard
         )
-        print("\n[OK] Cyclic Training COMPLETE")
-        print(f"   Total steps: {result.get('total_steps', 0)} | Total cycles: {result.get('total_cycles', 0)}")
+        if local_rank == 0:
+            print("\n[OK] Cyclic Training COMPLETE")
+            print(f"   Total steps: {result.get('total_steps', 0)} | Total cycles: {result.get('total_cycles', 0)}")
 
 
 if __name__ == '__main__':

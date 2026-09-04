@@ -10,7 +10,8 @@ async function run() {
             name: "Infinite Loop Defense",
             code: "function setup() { while(true){} }",
             expect: "TIMEOUT",
-            runId: "sec_test_loop"
+            runId: "sec_test_loop",
+            options: { page_load_timeout_ms: 3000, code_execution_timeout_ms: 3000 }
         },
         {
             name: "Invalid JavaScript Syntax",
@@ -67,6 +68,33 @@ async function run() {
             }`,
             expect: "NO_CANVAS",
             runId: "sec_test_tamper"
+        },
+        {
+            name: "Local Source Exfiltration Prevention (server.js)",
+            code: `function setup() {
+                createCanvas(100, 100, WEBGL);
+                background(100);
+                fetch('server.js').then(r => r.text()).then(t => console.log('EXFIL_SENTINEL:' + t)).catch(() => {});
+            }`,
+            expect: "SUCCESS",
+            validate: (res) => !(res.console_logs || []).some(l => l.includes('EXFIL_SENTINEL')),
+            runId: "sec_test_local_server"
+        },
+        {
+            name: "Delimiters in Ignored Contexts (Lexer Defense)",
+            code: `function setup() {
+                createCanvas(100, 100, WEBGL);
+                let str = "unmatched string ( { [";
+                let re = /[{()}]/g;
+                let tmpl = \`unmatched template ( { [\`;
+                // single comment with ( and {
+                /* multi comment with ( and { */
+                let ok = true;
+                if (ok) /{/.test("sample");
+                background(120);
+            }`,
+            expect: "SUCCESS",
+            runId: "sec_test_lexer_delims"
         }
     ];
     
@@ -75,9 +103,12 @@ async function run() {
 
     for (const c of cases) {
         process.stdout.write(`  [TEST] ${c.name.padEnd(45, '.')}`);
-        const result = await renderCode(c.code, 42, c.runId);
+        const result = await renderCode(c.code, 42, c.runId, c.options || {});
         
-        if (result.error_classification === c.expect) {
+        const isClassificationMatch = result.error_classification === c.expect;
+        const isValidationMatch = !c.validate || c.validate(result);
+
+        if (isClassificationMatch && isValidationMatch) {
             console.log(` [PASS] (Got: ${result.error_classification})`);
             passedCount++;
         } else {

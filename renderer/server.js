@@ -1,17 +1,50 @@
 const express = require('express');
-const { renderCode, closeBrowser } = require('./sandbox');
+const { renderCode, closeBrowser, getActiveRenders, isRecycleRequired } = require('./sandbox');
 
 const app = express();
 app.use(express.json({ limit: '5mb' }));
 
-const MAX_INFLIGHT = 10;
+const os = require('os');
+const MAX_INFLIGHT = 64;
+const CONCURRENT_WORKERS = parseInt(process.env.CONCURRENT_WORKERS, 10) || Math.min(8, Math.max(2, (os.cpus() && os.cpus().length) || 4));
+
+async function mapConcurrent(items, limit, fn) {
+    const results = new Array(items.length);
+    let index = 0;
+    const workers = new Array(Math.min(limit, items.length)).fill(0).map(async () => {
+        while (index < items.length) {
+            const i = index++;
+            results[i] = await fn(items[i], i);
+        }
+    });
+    await Promise.all(workers);
+    return results;
+}
 let inflight = 0;
 let jobsProcessed = 0;
 const RESTART_AFTER = 100;
 let recyclePromise = null;
 
 app.get('/health', (req, res) => {
-    res.json({ status: 'ok', inflight, jobsProcessed });
+    res.json({ status: 'ok', inflight, jobsProcessed, activeRenders: getActiveRenders() });
+});
+
+const SHUTDOWN_TOKEN = process.env.RENDERER_SHUTDOWN_TOKEN;
+if (!SHUTDOWN_TOKEN) {
+    console.error("Fatal: RENDERER_SHUTDOWN_TOKEN environment variable must be set.");
+    process.exit(1);
+}
+
+app.post('/shutdown', async (req, res) => {
+    const clientToken = req.headers['x-renderer-token'];
+    if (!clientToken || clientToken !== SHUTDOWN_TOKEN) {
+        return res.status(401).json({ error: "Unauthorized: Invalid or missing X-Renderer-Token" });
+    }
+    res.json({ status: 'shutting_down' });
+    setTimeout(async () => {
+        try { await closeBrowser(true); } catch (e) {}
+        process.exit(0);
+    }, 50);
 });
 
 app.post('/render', async (req, res) => {
@@ -44,11 +77,11 @@ app.post('/render', async (req, res) => {
     } finally {
         inflight--;
         // Safely recycle browser only when no other requests are in flight
-        if (jobsProcessed >= RESTART_AFTER && inflight === 0 && !recyclePromise) {
+        if ((jobsProcessed >= RESTART_AFTER || isRecycleRequired()) && inflight === 0 && !recyclePromise) {
             console.log("Recycling browser safely (inflight === 0)...");
             recyclePromise = (async () => {
                 try {
-                    await closeBrowser();
+                    await closeBrowser(true);
                     jobsProcessed = 0;
                 } catch (e) {
                     console.error("Error recycling browser:", e);
@@ -82,34 +115,33 @@ app.post('/render_batch', async (req, res) => {
     }
     
     try {
-        const promises = items.map((item, idx) => {
+        const results = await mapConcurrent(items, CONCURRENT_WORKERS, async (item, idx) => {
             const runId = 'batch_' + Date.now() + '_' + (++batchSeq) + '_' + idx;
             const start = Date.now();
             const opts = return_base64 ? { return_base64: true } : {};
-            return renderCode(item.code || '', item.seed, runId, opts)
-                .then(result => {
-                    result.render_ms = Date.now() - start;
-                    result.batch_index = idx;
-                    return result;
-                })
-                .catch(err => ({
+            try {
+                const result = await renderCode(item.code || '', item.seed, runId, opts);
+                result.render_ms = Date.now() - start;
+                result.batch_index = idx;
+                return result;
+            } catch (err) {
+                return {
                     success: false,
                     image_path: null,
                     error_classification: 'BATCH_RENDER_ERROR',
                     runtime_error: err.toString(),
                     batch_index: idx,
                     render_ms: Date.now() - start
-                }));
+                };
+            }
         });
-        
-        const results = await Promise.all(promises);
         res.json({ success: true, results });
     } finally {
         inflight -= items.length;
-        if (jobsProcessed >= RESTART_AFTER && inflight === 0 && !recyclePromise) {
+        if ((jobsProcessed >= RESTART_AFTER || isRecycleRequired()) && inflight === 0 && !recyclePromise) {
             recyclePromise = (async () => {
                 try {
-                    await closeBrowser();
+                    await closeBrowser(true);
                 } catch (e) {
                     console.error("Error recycling browser:", e);
                 } finally {

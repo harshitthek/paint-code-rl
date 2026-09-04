@@ -6,17 +6,14 @@ trailing unclosed string literals, and missing function closure braces.
 import re
 
 
-def _count_structural_braces(code: str) -> tuple[int, int]:
-    """Count structural curly braces outside comments and string literals."""
-    # Remove single-line comments
+def _count_tokens_outside_literals(code: str) -> tuple[int, int, int, int]:
+    """Count (parens, braces) outside comments and string literals."""
     cleaned = re.sub(r'//.*$', '', code, flags=re.MULTILINE)
-    # Remove multi-line comments
     cleaned = re.sub(r'/\*[\s\S]*?\*/', '', cleaned)
-    # Remove strings: double-quoted, single-quoted, and template literals
     cleaned = re.sub(r'"(?:\\.|[^"\\])*"', '""', cleaned)
     cleaned = re.sub(r"'(?:\\.|[^'\\])*'", "''", cleaned)
     cleaned = re.sub(r'`(?:\\.|[^`\\])*`', '``', cleaned)
-    return cleaned.count("{"), cleaned.count("}")
+    return cleaned.count("("), cleaned.count(")"), cleaned.count("{"), cleaned.count("}")
 
 
 def _sanitize_trailing_truncation(code: str) -> str:
@@ -28,22 +25,31 @@ def _sanitize_trailing_truncation(code: str) -> str:
     if not lines:
         return code
     
-    # Check the last line for obvious truncation (unclosed string literal, trailing dot, unclosed parens)
+    # Strip obvious truncation on trailing line
     last_line = lines[-1].strip()
     if last_line:
-        # Check for odd number of single/double quotes on the last line (unclosed literal like `brush.stroke('#ff3`)
         single_quotes = last_line.count("'") - last_line.count(r"\'")
         double_quotes = last_line.count('"') - last_line.count(r'\"')
+        has_unclosed_quote = (single_quotes % 2 != 0) or (double_quotes % 2 != 0)
+        ends_with_operator = any(last_line.endswith(op) for op in ("(", "[", ",", ".", "+", "-", "*", "/", "=", ":", "=>"))
+        is_partial_decl = last_line in ("let", "const", "var", "function", "if", "for", "while", "else", "try") or last_line.startswith("//")
         
-        if (single_quotes % 2 != 0) or (double_quotes % 2 != 0) or last_line.endswith("(") or last_line.endswith(",") or last_line.endswith("."):
-            # Remove the truncated last line
+        if has_unclosed_quote or ends_with_operator or is_partial_decl:
             lines.pop()
             code = "\n".join(lines).strip()
     
-    # Balance unclosed structural curly braces
-    open_braces, close_braces = _count_structural_braces(code)
-    if open_braces > close_braces:
-        code += "\n" + ("}\n" * (open_braces - close_braces))
+    # Balance unclosed parentheses and structural curly braces
+    open_p, close_p, open_b, close_b = _count_tokens_outside_literals(code)
+    if open_p > close_p:
+        code += (")" * (open_p - close_p)) + ";"
+    
+    # Balance unclosed structural curly braces (appending ')' does not change brace counts)
+    if open_b > close_b:
+        code += "\n" + ("}\n" * (open_b - close_b))
+    elif close_b > open_b:
+        excess = close_b - open_b
+        for _ in range(excess):
+            code = re.sub(r'\s*\}\s*$', '', code)
         
     return code.strip()
 
@@ -73,15 +79,22 @@ def robust_extract_js_code(raw_text: str) -> str:
     text = re.sub(r'<think>[\s\S]*?</think>', '', text, flags=re.IGNORECASE).strip()
     
     # 2. Closed markdown code fences (supports js, javascript, p5, p5js, or untagged)
-    closed_fence_match = re.search(
+    closed_blocks = re.findall(
         r'```(?:javascript|js|p5js|p5)?\s*\n([\s\S]*?)```', 
         text, 
         flags=re.IGNORECASE
     )
-    if closed_fence_match:
-        code = closed_fence_match.group(1).strip()
-        if code:
-            return _sanitize_trailing_truncation(code)
+    if closed_blocks:
+        chosen = None
+        for b in closed_blocks:
+            if "setup" in b and "createCanvas" in b:
+                chosen = b
+                break
+            elif "setup" in b or "createCanvas" in b:
+                chosen = b
+        if not chosen:
+            chosen = max(closed_blocks, key=len)
+        return _sanitize_trailing_truncation(chosen).strip()
             
     # 3. Unclosed markdown code fence (generation truncated mid-code without closing ```)
     unclosed_fence_match = re.search(

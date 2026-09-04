@@ -10,10 +10,19 @@ import os
 import sys
 import json
 import torch
-from datasets import Dataset
-from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
-from trl import GRPOTrainer, GRPOConfig
-from peft import LoraConfig
+
+# Neutralize Kaggle's incompatible pre-installed torchao 0.10.0 to prevent PEFT crash
+try:
+    import torchao
+    from packaging import version
+    if version.parse(torchao.__version__) < version.parse("0.16.0"):
+        import sys
+        sys.modules["torchao"] = None
+except Exception:
+    pass
+
+# Heavy dependencies (transformers, trl, peft, datasets) are imported lazily
+# inside their respective methods to prevent 40s module import overhead on Windows/macOS.
 
 from paint_rl.config.prompts import SYSTEM_PROMPT
 from paint_rl.utils.code_extractor import robust_extract_js_code
@@ -22,6 +31,13 @@ from paint_rl.utils.code_extractor import robust_extract_js_code
 def get_compute_device():
     """Device-agnostic compute device selector (CUDA, Apple MPS, CPU)."""
     if torch.cuda.is_available():
+        local_rank = int(os.environ.get("LOCAL_RANK", 0))
+        if local_rank < torch.cuda.device_count():
+            try:
+                torch.cuda.set_device(local_rank)
+            except Exception:
+                pass
+            return torch.device(f"cuda:{local_rank}")
         return torch.device("cuda")
     elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
         return torch.device("mps")
@@ -30,9 +46,9 @@ def get_compute_device():
 
 # Maximum safe training parameters per device type
 _MPS_SAFE_LIMITS = {
-    "max_batch_size": 8,
-    "max_group_size": 8,
-    "max_new_tokens": 512,
+    "max_batch_size": 2,
+    "max_group_size": 2,
+    "max_new_tokens": 320,
 }
 
 # Model selection table by device capability
@@ -74,7 +90,8 @@ class PaintGRPOTrainer:
         elif self.device.type == "cuda":
             import torch
             try:
-                vram_gb = torch.cuda.get_device_properties(0).total_memory / 1e9
+                dev_idx = self.device.index if self.device.index is not None else 0
+                vram_gb = torch.cuda.get_device_properties(dev_idx).total_memory / 1e9
             except Exception:
                 vram_gb = 8.0
             if vram_gb >= 20:
@@ -92,6 +109,17 @@ class PaintGRPOTrainer:
                 print(f"[INFO] Config model '{config_model}' overridden to "
                       f"'{device_model}' for {self.device.type} compatibility")
             return device_model
+        elif self.device.type == "cuda":
+            import torch
+            try:
+                dev_idx = self.device.index if self.device.index is not None else 0
+                vram_gb = torch.cuda.get_device_properties(dev_idx).total_memory / 1e9
+            except Exception:
+                vram_gb = 8.0
+            if vram_gb < 20.0 and config_model and config_model != device_model:
+                print(f"[INFO] Config model '{config_model}' overridden to "
+                      f"'{device_model}' for CUDA ({vram_gb:.1f} GB VRAM < 20 GB) compatibility")
+                return device_model
         
         return config_model or device_model
 
@@ -139,6 +167,8 @@ class PaintGRPOTrainer:
 
     def load_model(self):
         """Load model and tokenizer, respecting device constraints and attention config."""
+        from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
+
         model_id = self._resolve_model_id()
         dtype = self._get_dtype()
         
@@ -175,7 +205,27 @@ class PaintGRPOTrainer:
 
     def build_reward_functions(self):
         """Build multi-tier reward functions for GRPO training."""
-        from paint_rl.rewards.aesthetic import calculate_visual_richness, calculate_brush_utilization
+        from paint_rl.rewards.aesthetic import calculate_visual_richness, calculate_brush_utilization, CLIPAestheticScorer
+
+        # Lazy initialize CLIP multimodal prompt alignment scorer
+        clip_scorer = None
+        try:
+            clip_device = "cpu"
+            if torch.cuda.is_available():
+                local_rank = int(os.environ.get("LOCAL_RANK", 0))
+                world_size = int(os.environ.get("WORLD_SIZE", 1))
+                if world_size > 1:
+                    clip_device = f"cuda:{local_rank}"
+                elif torch.cuda.device_count() > 1:
+                    clip_device = "cuda:1"
+                else:
+                    clip_device = "cuda:0"
+            elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+                clip_device = "mps"
+            clip_scorer = CLIPAestheticScorer(device=clip_device)
+            print(f"[PaintGRPOTrainer] Activated CLIP Semantic Alignment Scorer on {clip_device}")
+        except Exception as ce:
+            print(f"[PaintGRPOTrainer] CLIP Semantic Scorer optional fallback ({ce})")
 
         def structural_syntax_reward(prompts, completions, **kwargs):
             rewards = []
@@ -221,16 +271,49 @@ class PaintGRPOTrainer:
                 batch_results = [{"success": False} for _ in completions]
             
             rewards = []
-            for res in batch_results:
+            for i, res in enumerate(batch_results):
                 try:
                     if res.get("success") and res.get("image_path"):
                         richness_meta = calculate_visual_richness(res["image_path"])
+                        p_txt = batch_items[i].get("prompt", "") if i < len(batch_items) else ""
+                        c_txt = batch_items[i].get("code", "") if i < len(batch_items) else ""
+
                         if richness_meta.get("is_blank"):
-                            rewards.append(0.05)
+                            r = 0.05
+                            scorecard = richness_meta.get("critique", "[CRITIQUE] Canvas is empty")
                         else:
                             richness_score = richness_meta.get("richness_score", 0.0)
-                            total_r = 0.35 + 0.65 * richness_score
-                            rewards.append(round(min(1.0, total_r), 3))
+                            
+                            # Semantic CLIP Image-Text Alignment
+                            clip_sim = None
+                            if clip_scorer is not None:
+                                try:
+                                    clean_p = p_txt.replace("Create generative art in p5.js:", "").strip()
+                                    clip_sim = clip_scorer.score_prompt_alignment(res["image_path"], clean_p)
+                                except Exception:
+                                    clip_sim = None
+
+                            if clip_sim is not None:
+                                r = round(min(1.0, 0.15 + 0.45 * richness_score + 0.40 * clip_sim), 3)
+                                scorecard = f"{richness_meta.get('critique', '')} | [CLIP Match: {clip_sim:.2f}]"
+                            else:
+                                r = round(min(1.0, 0.35 + 0.65 * richness_score), 3)
+                                scorecard = richness_meta.get("critique", "")
+
+                            # Barcode / 1D striping penalty
+                            if richness_meta.get("barcode_detected"):
+                                r = round(max(0.05, r * 0.15), 3)
+
+                        rewards.append(r)
+                        if getattr(self, "_active_dashboard_writer", None) and int(os.environ.get("LOCAL_RANK", 0)) == 0:
+                            self._active_dashboard_writer.add_sample(
+                                prompt=p_txt,
+                                code=c_txt,
+                                image_path=res.get("image_path"),
+                                scorecard=scorecard,
+                                reward=r,
+                                step=getattr(self, "_current_step", 0)
+                            )
                     else:
                         rewards.append(0.0)
                 except Exception:
@@ -241,6 +324,8 @@ class PaintGRPOTrainer:
 
     def load_dataset(self, split="train"):
         """Load prompts from versioned dataset files formatted as conversational ChatML messages."""
+        from datasets import Dataset
+
         if split == "train":
             filename = "prompts_v1.jsonl"
         else:
@@ -309,6 +394,9 @@ class PaintGRPOTrainer:
             dataset = self.load_dataset()
         reward_funcs = self.build_reward_functions()
         
+        from peft import LoraConfig
+        from trl import GRPOTrainer, GRPOConfig
+
         peft_config = LoraConfig(
             r=8,
             lora_alpha=16,
@@ -334,11 +422,14 @@ class PaintGRPOTrainer:
         print(f"  max_new_tokens={max_new_tokens}")
         print(f"  output_dir={output_dir}")
         
+        prompt_batch_size = num_gens
+        grad_accum = max(1, batch_size // num_gens)
+        
         grpo_kwargs = {
             "output_dir": output_dir,
             "learning_rate": lr,
-            "per_device_train_batch_size": batch_size,
-            "gradient_accumulation_steps": 1,
+            "per_device_train_batch_size": prompt_batch_size,
+            "gradient_accumulation_steps": grad_accum,
             "num_generations": num_gens,
             "max_completion_length": max_new_tokens,
             "max_steps": steps,
@@ -346,16 +437,21 @@ class PaintGRPOTrainer:
             "save_steps": steps,
             "save_strategy": "steps",
             "report_to": "none",
+            "temperature": self.config.generation.temperature if self.config else 0.7,
+            "lr_scheduler_type": "constant",
         }
         
         if self.device.type == "mps":
-            grpo_kwargs["gradient_checkpointing"] = False
+            grpo_kwargs["gradient_checkpointing"] = True
+            grpo_kwargs["gradient_checkpointing_kwargs"] = {"use_reentrant": False}
             grpo_kwargs["fp16"] = False
             grpo_kwargs["bf16"] = False
         elif self.device.type == "cuda":
             grpo_kwargs["gradient_checkpointing"] = True
+            grpo_kwargs["gradient_checkpointing_kwargs"] = {"use_reentrant": False}
             grpo_kwargs["fp16"] = not torch.cuda.is_bf16_supported()
             grpo_kwargs["bf16"] = torch.cuda.is_bf16_supported()
+            grpo_kwargs["ddp_find_unused_parameters"] = False
         else:
             grpo_kwargs["gradient_checkpointing"] = False
             grpo_kwargs["fp16"] = False
@@ -375,19 +471,26 @@ class PaintGRPOTrainer:
         
         train_result = self.trainer.train()
         
-        final_dir = os.path.join(output_dir, "final_adapter")
-        os.makedirs(final_dir, exist_ok=True)
-        self.trainer.save_model(final_dir)
-        print(f"[PaintGRPOTrainer] [OK] Model saved to {final_dir}")
-        
-        try:
-            from paint_rl.trainer.checkpoint_validator import CheckpointValidator
-            safetensors_path = os.path.join(final_dir, "adapter_model.safetensors")
-            if os.path.exists(safetensors_path):
-                CheckpointValidator.validate_safetensors(safetensors_path)
-                print(f"[PaintGRPOTrainer] [OK] Checkpoint validated: {safetensors_path}")
-        except Exception as e:
-            print(f"[PaintGRPOTrainer] [WARN] Checkpoint validation failed: {e}")
+        is_main_process = True
+        if hasattr(self.trainer, "accelerator"):
+            is_main_process = self.trainer.accelerator.is_main_process
+        elif "LOCAL_RANK" in os.environ:
+            is_main_process = int(os.environ["LOCAL_RANK"]) == 0
+
+        if is_main_process:
+            final_dir = os.path.join(output_dir, "final_adapter")
+            os.makedirs(final_dir, exist_ok=True)
+            self.trainer.save_model(final_dir)
+            print(f"[PaintGRPOTrainer] [OK] Model saved to {final_dir}")
+            
+            try:
+                from paint_rl.trainer.checkpoint_validator import CheckpointValidator
+                safetensors_path = os.path.join(final_dir, "adapter_model.safetensors")
+                if os.path.exists(safetensors_path):
+                    CheckpointValidator.validate_safetensors(safetensors_path)
+                    print(f"[PaintGRPOTrainer] [OK] Checkpoint validated: {safetensors_path}")
+            except Exception as e:
+                print(f"[PaintGRPOTrainer] [WARN] Checkpoint validation failed: {e}")
         
         self._clear_memory()
         return train_result
@@ -398,8 +501,9 @@ class PaintGRPOTrainer:
             self._repo_root, "artifacts", "checkpoints", "step_1_test"
         )
         batch_size, _ = self._get_safe_batch_params()
+        world_size = int(os.environ.get("WORLD_SIZE", 1))
         raw_dataset = self.load_dataset("train")
-        take_count = min(batch_size, len(raw_dataset))
+        take_count = min(batch_size * max(1, world_size), len(raw_dataset))
         dataset = raw_dataset.select(range(take_count))
         return self.train(max_steps=1, checkpoint_dir=checkpoint_dir, dataset=dataset)
 
@@ -424,6 +528,9 @@ class PaintGRPOTrainer:
         dataset = self.load_dataset("train")
         reward_funcs = self.build_reward_functions()
         
+        from peft import LoraConfig
+        from trl import GRPOTrainer, GRPOConfig
+
         peft_config = LoraConfig(
             r=8,
             lora_alpha=16,
@@ -452,11 +559,12 @@ class PaintGRPOTrainer:
         cycles_to_run = 1
         all_metrics = []
         
+        lr = self.config.training.learning_rate if self.config and hasattr(self.config, 'training') and self.config.training else 5e-6
         print("\n[PaintGRPOTrainer] Cyclic Training Started")
         print(f"  Steps/cycle: {steps_per_cycle} | Batch: {batch_size} | Group: {num_gens}")
-        print(f"  Max tokens: {max_new_tokens} | Device: {self.device}")
+        print(f"  Max tokens: {max_new_tokens} | Device: {self.device} | LR: {lr}")
         print(f"  Mode: {'Unattended' if unattended else 'Interactive'}")
-        print()
+        self._active_dashboard_writer = dashboard_writer
         
         while True:
             cycle_num += 1
@@ -472,30 +580,39 @@ class PaintGRPOTrainer:
             current_temp = self.compute_temperature(total_steps_done)
             print("=" * 60)
             print(f"  CYCLE {cycle_num}: Steps {total_steps_done + 1} -> {total_steps_done + cycle_steps}")
-            print(f"  Target Temperature: {current_temp:.3f} | LR: 5e-6")
+            print(f"  Target Temperature: {current_temp:.3f} | LR: {lr}")
             print("=" * 60)
+            
+            self._clear_memory()
+            prompt_batch_size = num_gens
+            grad_accum = max(1, batch_size // num_gens)
             
             grpo_kwargs = {
                 "output_dir": output_dir,
-                "learning_rate": 5e-6,
-                "per_device_train_batch_size": batch_size,
-                "gradient_accumulation_steps": 1,
+                "learning_rate": lr,
+                "per_device_train_batch_size": prompt_batch_size,
+                "gradient_accumulation_steps": grad_accum,
                 "num_generations": num_gens,
                 "max_completion_length": max_new_tokens,
                 "max_steps": cycle_steps,
                 "logging_steps": 1,
                 "save_strategy": "no",
                 "report_to": "none",
+                "temperature": current_temp,
+                "lr_scheduler_type": "constant",
             }
             
             if self.device.type == "mps":
-                grpo_kwargs["gradient_checkpointing"] = False
+                grpo_kwargs["gradient_checkpointing"] = True
+                grpo_kwargs["gradient_checkpointing_kwargs"] = {"use_reentrant": False}
                 grpo_kwargs["fp16"] = False
                 grpo_kwargs["bf16"] = False
             elif self.device.type == "cuda":
                 grpo_kwargs["gradient_checkpointing"] = True
+                grpo_kwargs["gradient_checkpointing_kwargs"] = {"use_reentrant": False}
                 grpo_kwargs["fp16"] = not torch.cuda.is_bf16_supported()
                 grpo_kwargs["bf16"] = torch.cuda.is_bf16_supported()
+                grpo_kwargs["ddp_find_unused_parameters"] = False
             else:
                 grpo_kwargs["gradient_checkpointing"] = False
                 grpo_kwargs["fp16"] = False
@@ -513,28 +630,51 @@ class PaintGRPOTrainer:
                 peft_config=peft_config if cycle_num == 1 else None,
             )
             
+            self._current_step = total_steps_done
             train_output = self.trainer.train()
             total_steps_done += cycle_steps
+            if hasattr(self.trainer, "model") and self.trainer.model is not None:
+                self.model = self.trainer.model
             
+            is_main_process = True
+            if hasattr(self.trainer, "accelerator"):
+                is_main_process = self.trainer.accelerator.is_main_process
+            elif "LOCAL_RANK" in os.environ:
+                is_main_process = int(os.environ["LOCAL_RANK"]) == 0
+
+            # Extract real RL training metrics from log history
+            log_hist = self.trainer.state.log_history if hasattr(self.trainer, "state") and self.trainer.state else []
+            rewards_list = [entry["reward"] for entry in log_hist if "reward" in entry]
+            grad_norms = [entry["grad_norm"] for entry in log_hist if "grad_norm" in entry]
+            entropies = [entry["entropy"] for entry in log_hist if "entropy" in entry]
+            
+            mean_reward = float(sum(rewards_list) / len(rewards_list)) if rewards_list else 0.0
+            mean_grad_norm = float(sum(grad_norms) / len(grad_norms)) if grad_norms else 0.0
+            mean_entropy = float(sum(entropies) / len(entropies)) if entropies else 0.0
             cycle_loss = getattr(train_output, 'training_loss', 0.0)
+            
             cycle_metric = {
                 "cycle": cycle_num,
                 "steps_done": total_steps_done,
                 "loss": float(cycle_loss) if cycle_loss else 0.0,
+                "reward": round(mean_reward, 4),
+                "grad_norm": round(mean_grad_norm, 4),
+                "entropy": round(mean_entropy, 4),
                 "temperature": float(current_temp),
             }
             all_metrics.append(cycle_metric)
             
-            print(f"\n  [Cycle {cycle_num} Summary] Total Steps: {total_steps_done} | Loss: {cycle_metric['loss']:.4f}")
+            if is_main_process:
+                print(f"\n  [Cycle {cycle_num} Summary] Steps: {total_steps_done} | Mean Reward: {mean_reward:.3f} | Grad Norm: {mean_grad_norm:.4f} | Temp: {current_temp:.3f}")
             
-            if dashboard_writer:
+            if dashboard_writer and is_main_process:
                 dashboard_writer.update(all_metrics)
             
             cycles_to_run -= 1
             if cycles_to_run > 0:
                 continue
             
-            if unattended:
+            if unattended or not is_main_process:
                 if max_steps and total_steps_done >= max_steps:
                     break
                 cycles_to_run = 1
@@ -557,19 +697,20 @@ class PaintGRPOTrainer:
                 cycles_to_run = 1
         
         final_dir = os.path.join(output_dir, "final_adapter")
-        os.makedirs(final_dir, exist_ok=True)
-        if self.trainer:
-            self.trainer.save_model(final_dir)
-            print(f"[PaintGRPOTrainer] [OK] Final checkpoint saved to {final_dir}")
-        
-        from paint_rl.trainer.checkpoint_validator import CheckpointValidator
-        safetensors_path = os.path.join(final_dir, "adapter_model.safetensors")
-        if os.path.exists(safetensors_path):
-            try:
-                CheckpointValidator.validate_safetensors(safetensors_path)
-                print(f"[PaintGRPOTrainer] [OK] Checkpoint validated: {safetensors_path}")
-            except Exception as e:
-                print(f"[PaintGRPOTrainer] [WARN] Checkpoint validation failed: {e}")
+        if is_main_process:
+            os.makedirs(final_dir, exist_ok=True)
+            if self.trainer:
+                self.trainer.save_model(final_dir)
+                print(f"[PaintGRPOTrainer] [OK] Final checkpoint saved to {final_dir}")
+            
+            from paint_rl.trainer.checkpoint_validator import CheckpointValidator
+            safetensors_path = os.path.join(final_dir, "adapter_model.safetensors")
+            if os.path.exists(safetensors_path):
+                try:
+                    CheckpointValidator.validate_safetensors(safetensors_path)
+                    print(f"[PaintGRPOTrainer] [OK] Checkpoint validated: {safetensors_path}")
+                except Exception as e:
+                    print(f"[PaintGRPOTrainer] [WARN] Checkpoint validation failed: {e}")
         
         self._clear_memory()
         

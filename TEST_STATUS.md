@@ -1,19 +1,20 @@
 # Test Status & Verification Report
 
-**Total Test Count:** 96 / 96 Passed (100% Green)
+**Total Test Count:** 143 / 143 Passed (100% Green)
 
 ---
 
-## 1. Python Pytest Suite (`pytest tests/ -v`) — 78/78 Passed
+## 1. Python Pytest Suite (`pytest tests/ -v`) — 104/104 Passed
 
 | Test Module | Tests | Status | Description |
 | :--- | :--- | :--- | :--- |
 | `tests/test_code_extractor_and_prompting.py` | 8 | `PASSED` | Markdown fence, thinking tags, raw setup extraction, dataset conversational formatting |
-| `tests/test_cyclic_and_scorecard.py` | 14 | `PASSED` | Laplacian variance, tiny image edge cases, anti-cheat, scorecards, `--max` simulation, temperature annealing, dashboard XSS escaping |
+| `tests/test_cyclic_and_scorecard.py` | 15 | `PASSED` | Laplacian variance, directional anisotropy anti-barcode filter, tiny image edge cases, anti-cheat, scorecards |
 | `tests/test_mps_integration.py` | 14 | `PASSED` | Apple Silicon Metal & MPS device detection, memory-safe batch limits, model resolution |
 | `tests/test_rewards.py` | 36 | `PASSED` | 5-tier visual reward matrix, cache operations, model registry, judge providers, telemetry |
 | `tests/test_soup_integration.py` | 3 | `PASSED` | Preflight, reward validation, async rollout |
 | `tests/test_hardening.py` | 3 | `PASSED` | Checkpoint validation, cache integrity, config schema |
+| `tests/test_tight_hardening.py` | 25 | `PASSED` | Floating-point numerical guarantees, bounded rewards, fail-closed components |
 
 ---
 
@@ -26,7 +27,7 @@
 | **Missing Canvas Extraction** | `NO_CANVAS` | `PASSED` | Fails gracefully if canvas is removed |
 | **Runtime Crash Handling** | `RUNTIME_ERROR` | `PASSED` | Catches uncaught runtime exceptions |
 | **Network Exfiltration Prevention** | `SUCCESS` | `PASSED` | Request interception blocks outbound `fetch()` / `WebSocket` |
-| **Signal Tampering Resilience** | `SUCCESS` | `PASSED` | Non-writable `Object.defineProperty` prevents overriding signal |
+| **Signal Tampering Resilience** | `SUCCESS` | `PASSED` | Configurable property and proxy get-trap verification |
 | **Directory Traversal in `runId`** | `SUCCESS` | `PASSED` | Sanitizes `runId` preventing path escaping |
 | **Canvas Removal & Tampering** | `NO_CANVAS` | `PASSED` | Detects hidden/tampered canvas elements |
 
@@ -46,3 +47,12 @@
 | 8. p5.brush primitive | Natural media brush stroke | `PASSED` |
 | 9. Multi-operation p5.brush | Watercolor wash, bleed, and lines | `PASSED` |
 | 10. Broken code | Graceful error classification | `PASSED` |
+
+---
+
+## 4. Node.js Adversarial Stress Suite (`node test_adversarial_corpus.js`) — 21/21 Passed
+
+| Category | Count | Status | Description |
+| :--- | :--- | :--- | :--- |
+| Synthetic Syntax & Runtime Traps | 10 | `PASSED` | Fake constructors, shadowed globals, unquoted params, proxy traps, forced errors |
+| Real Kaggle Rollout Edge Cases | 11 | `PASSED` | ES imports, DOMContentLoaded wrappers, math constants, camera calls, color arguments |

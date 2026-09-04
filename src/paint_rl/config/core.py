@@ -6,6 +6,11 @@ from pydantic import BaseModel, Field
 from typing import Dict, Optional, Any
 
 
+class ConfigurationError(ValueError):
+    """Raised when configuration validation or mode invariants fail."""
+    pass
+
+
 class SafetyConfig(BaseModel):
     allow_external_apis: bool = False
 
@@ -191,7 +196,7 @@ def load_config(env: str = "local") -> tuple:
     try:
         config = ProjectConfig(**merged)
     except Exception as e:
-        raise ValueError(f"Configuration Error: {e}")
+        raise ConfigurationError(f"Configuration Error: {e}") from e
 
     # Hash
     config_json = config.model_dump_json(indent=2)
@@ -232,34 +237,51 @@ def apply_max_hardware_config(config):
     device_type = config.device.type if config else "cpu"
     
     if device_type == "mps":
-        # Apple Silicon: scale based on unified memory
-        if ram_gb >= 32:
-            config.training.group_size = 8
-            config.training.batch_size = 8
-            config.generation.max_new_tokens = 512
-        elif ram_gb >= 16:
+        # Apple Silicon unified memory scaling:
+        # 1.5B float32 model alone requires ~6.16GB.
+        # Forward/backward tensors for B=2 take ~2GB.
+        # Safe memory budget: ~11GB total peak footprint inside 16GB unified RAM.
+        if ram_gb >= 64:
             config.training.group_size = 6
             config.training.batch_size = 6
             config.generation.max_new_tokens = 448
-        else:
+        elif ram_gb >= 32:
             config.training.group_size = 4
             config.training.batch_size = 4
             config.generation.max_new_tokens = 384
+        elif ram_gb >= 16:
+            config.training.group_size = 2
+            config.training.batch_size = 2
+            config.generation.max_new_tokens = 320
+        else:
+            config.training.group_size = 2
+            config.training.batch_size = 2
+            config.generation.max_new_tokens = 256
         adjustments["mps_group_size"] = config.training.group_size
         adjustments["mps_max_new_tokens"] = config.generation.max_new_tokens
         
     elif device_type == "cuda":
-        # CUDA: scale by VRAM
+        # CUDA: scale by VRAM and GPU count (Dual-GPU / Multi-GPU saturation)
         try:
-            vram_gb = torch.cuda.get_device_properties(0).total_memory / 1e9
+            device_count = torch.cuda.device_count() if torch.cuda.is_available() else 1
+            vram_per_gpu = [torch.cuda.get_device_properties(i).total_memory / 1e9 for i in range(device_count)] if torch.cuda.is_available() else [8.0]
+            total_vram_gb = sum(vram_per_gpu)
+            max_single_vram = max(vram_per_gpu) if vram_per_gpu else 8.0
         except Exception:
-            vram_gb = 8.0
+            device_count = 1
+            total_vram_gb = 8.0
+            max_single_vram = 8.0
+            vram_per_gpu = [8.0]
         
-        if vram_gb >= 40:  # A100
+        adjustments["cuda_devices"] = device_count
+        adjustments["cuda_vram_gb"] = round(max_single_vram, 1)
+        adjustments["cuda_total_vram_gb"] = round(total_vram_gb, 1)
+
+        if max_single_vram >= 40:  # A100 (40GB/80GB)
             config.training.group_size = 8
             config.training.batch_size = 8
             config.generation.max_new_tokens = 512
-        elif vram_gb >= 15:  # T4/V100
+        elif max_single_vram >= 15:  # T4/V100 (16GB)
             config.training.group_size = 6
             config.training.batch_size = 6
             config.generation.max_new_tokens = 450
@@ -267,8 +289,8 @@ def apply_max_hardware_config(config):
             config.training.group_size = 4
             config.training.batch_size = 4
             config.generation.max_new_tokens = 384
-        adjustments["cuda_vram_gb"] = round(vram_gb, 1)
         adjustments["cuda_group_size"] = config.training.group_size
+        adjustments["cuda_max_new_tokens"] = config.generation.max_new_tokens
         
     else:  # CPU
         # Maximize threads, keep small group_size (CPU generation is slow)

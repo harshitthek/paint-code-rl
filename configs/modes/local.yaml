@@ -5,8 +5,11 @@ safety:
   allow_external_apis: false
 
 training:
-  batch_size: 4       # Conservative default; MPS overlay downsizes further
+  batch_size: 2
   group_size: 2
+
+generation:
+  max_new_tokens: 320
 
 judge:
   provider: "local"

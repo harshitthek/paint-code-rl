@@ -33,3 +33,12 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+addopts = "-q --disable-warnings"
+filterwarnings = [
+    "ignore::DeprecationWarning:trl.*",
+    "ignore::DeprecationWarning:transformers.*",
+    "ignore::DeprecationWarning:torch.*",
+    "ignore::UserWarning:trl.*",
+    "ignore::UserWarning:transformers.*",
+    "ignore::UserWarning:torch.*"
+]

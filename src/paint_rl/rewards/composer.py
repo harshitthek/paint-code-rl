@@ -24,8 +24,30 @@ from .components import (
 
 
 class RewardComposer:
-    def __init__(self, components: List[RewardComponent]):
-        self.components = components
+    def __init__(self, components: List[Any]):
+        unpacked = []
+        for c in components:
+            if isinstance(c, tuple):
+                comp, weight = c
+                if hasattr(comp, "_weight"):
+                    try:
+                        comp._weight = weight
+                    except AttributeError:
+                        try:
+                            comp.weight = weight
+                        except AttributeError:
+                            raise ValueError(f"Component {comp} does not support setting weight.")
+                elif hasattr(comp, "weight"):
+                    try:
+                        comp.weight = weight
+                    except AttributeError:
+                        raise ValueError(f"Component {comp} does not support setting weight.")
+                else:
+                    raise ValueError(f"Component {comp} does not support setting weight.")
+                unpacked.append(comp)
+            else:
+                unpacked.append(c)
+        self.components = unpacked
 
     def compute(self, render_result: dict, image_path: str = None,
                 prompt: str = "", code: str = "", reference_path: str = None, **kwargs) -> Dict[str, Any]:

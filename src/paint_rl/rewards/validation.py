@@ -7,7 +7,7 @@ class RewardValidationError(ValueError):
 def validate_reward_score(score: Any, component_name: str, min_val: float = None, max_val: float = None) -> float:
     if score is None:
         raise RewardValidationError(f"Reward component '{component_name}' returned None.")
-    if not isinstance(score, (int, float)):
+    if isinstance(score, bool) or not isinstance(score, (int, float)):
         raise RewardValidationError(f"Reward component '{component_name}' returned non-numeric type: {type(score)}")
     if math.isnan(score):
         raise RewardValidationError(f"Reward component '{component_name}' returned NaN.")

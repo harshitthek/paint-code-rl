@@ -1,12 +1,19 @@
 # Phase-0 Prototype Implementation: Training AI to Paint with Code
 
-The goal of this specification is strictly to build the end-to-end infrastructure for visual RL via GRPO, ensuring that the components function, communicate, and scale reliably before any scientific conclusions are attempted.
+> [!NOTE]
+> **HISTORICAL SPECIFICATION (ARCHIVED)**
+> This document describes the initial historical Phase-0 design sprint. It no longer defines active reward, configuration, or renderer contracts. For current production contracts, refer to:
+> - Active architecture & execution modes: [HYBRID_EXECUTION_ARCHITECTURE.md](HYBRID_EXECUTION_ARCHITECTURE.md)
+> - Current 5-tier reward weights: `configs/base.yaml` and `src/paint_rl/rewards/`
+> - Current renderer API & batching: `renderer/server.js` and `src/paint_rl/renderer/manager.py`
+
+The goal of this historical specification was strictly to build the end-to-end infrastructure for visual RL via GRPO, ensuring that the components function, communicate, and scale reliably before any scientific conclusions are attempted.
 
 ---
 
 ## 1. Exact Phase-0 Scope
 
-*   **Model:** `Qwen/Qwen2.5-Coder-7B-Instruct`
+*   **Model:** `Qwen/Qwen2.5-Coder-1.5B-Instruct` (default for FREE/LOCAL/MPS, scalable to 7B in PAID)
 *   **LoRA Config:** rank=32, alpha=64, target_modules=["q_proj", "v_proj"] (OUR PROTOTYPE CHOICE)
 *   **Prompt Dataset:** 50 highly distinct prompts (e.g., "draw a red circle", "draw a green tree", "draw a blue river"). Held-out validation set: 10 prompts.
 *   **Group Size ($G$):** 4 (OUR PROTOTYPE CHOICE - scaled down for infrastructure testing)
@@ -55,7 +62,7 @@ The goal of this specification is strictly to build the end-to-end infrastructur
 
 A robust, minimal Node.js Express server to handle Puppeteer.
 
-**API Endpoint:** `POST /render`
+**API Endpoint (Historical):** `POST /render`
 ```json
 // Request
 {
@@ -73,6 +80,10 @@ A robust, minimal Node.js Express server to handle Puppeteer.
   "runtime_error": null
 }
 ```
+
+> [!NOTE]
+> **Active Renderer Contract:**
+> The active production renderer in `renderer/server.js` and `src/paint_rl/renderer/manager.py` expands on this with `POST /render_batch` for concurrent Puppeteer browser page execution and token-protected `POST /shutdown` (`RENDERER_SHUTDOWN_TOKEN`). Both filesystem rendering and Base64 streaming are supported.
 
 **Implementation Requirements:**
 *   Maintain a persistent browser context to avoid 2-second cold starts.
@@ -335,24 +346,44 @@ A complete execution of this phase results in:
 
 ---
 
-## 20. Final Gate
+## 20. Implementation Status
 
-### READY TO CODE
+### COMPLETED & SUPERSEDED
 
-The specification contains exact library versions, defensive sandbox configurations, precise API schemas, a verified non-distributed GRPO architecture (`trl`), and objective test gates. An engineer can follow this document top-to-bottom to build the Phase-0 infrastructure without guessing.
+The Phase-0 prototype specification has been fully implemented, validated, and superseded by the active visual RL and cyclic training architecture. Readers looking for current system architecture and test gates should consult:
+*   Current Architecture: [HYBRID_EXECUTION_ARCHITECTURE.md](HYBRID_EXECUTION_ARCHITECTURE.md)
+*   Interactive Cyclic Training & Hardware Saturation: [ADR-009](../decisions/ADR-009-interactive-cyclic-training-and-hardware-saturation.md)
+*   Current Test Status & Verification Gates: [TEST_STATUS.md](../../TEST_STATUS.md)
 
-**Goal:**
-1. FIRST MAKE THE LOOP WORK. *(This Document)*
-2. THEN MEASURE IT. *(Phase 1)*
-3. THEN TEST THE HYPOTHESIS. *(Phase 2)*
-4. THEN SCALE. *(Phase 3)*
+**Phased Trajectory:**
+1. FIRST MAKE THE LOOP WORK. *(Phase 0 - Completed)*
+2. THEN MEASURE IT. *(Phase 1 - Active)*
+3. THEN TEST THE HYPOTHESIS. *(Phase 2 - Planned)*
+4. THEN SCALE. *(Phase 3 - Planned)*
 
-## 21. Configuration Management
+---
 
-Explicitly separate configurations to avoid scientific confusion:
+## 21. Configuration Management (Historical)
 
-``python
+> [!NOTE]
+> The configurations below represent early Phase-0 prototype definitions and do NOT define the active reward system. Active reward configuration is centralized in `configs/base.yaml` and loaded via `paint_rl.config.core.ACTIVE_CONFIG`, utilizing the 5-tier reward architecture implemented in `paint_rl.rewards.composer.RewardComposer`:
+> - `CompileRewardComponent`: 0.10
+> - `AestheticRewardComponent` / `CLIPAestheticScorer`: 0.15
+> - `VisualRichnessComponent`: 0.25 (with directional gradient anisotropy anti-barcode filter)
+> - `BrushUtilizationComponent`: 0.15 (with anti-cheat validation)
+> - `PairwiseRewardComponent`: 0.00 (in FREE/LOCAL mode)
+
+```python
+# Active 5-tier RewardConfig schema (compatible with paint_rl.config.core.RewardConfig):
 class RewardConfig:
-    ORIGINAL_PROJECT = {"compile": 0.05, "length": 0.05, "hpsv3": 0.30, "pairwise": 0.60}
-    PHASE0_PROTOTYPE = {"compile": 0.10, "length": 0.00, "hpsv3": 0.30, "pairwise": 0.60}
-``
+    weights = {
+        "compile": 0.10,
+        "aesthetic": 0.15,
+        "richness": 0.25,
+        "brush": 0.15,
+        "pairwise": 0.00,
+    }
+
+# Archival Phase-0 reference (historical):
+# PHASE0_PROTOTYPE = {"compile": 0.10, "length": 0.00, "hpsv3": 0.30, "pairwise": 0.60}
+```
