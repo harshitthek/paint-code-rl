@@ -479,6 +479,8 @@ async function renderCode(code, seed, runId, options = {}) {
 
         // Replace external asset loaders with instant procedural dummy values (prevents preload hangs)
         safeCode = safeCode.replace(/loadImage\s*\([^)]*\)/g, 'createImage(100, 100)');
+        safeCode = safeCode.replace(/loadTexture\s*\([^)]*\)/g, 'createImage(100, 100)');
+        safeCode = safeCode.replace(/loadShader\s*\([^)]*\)/g, 'null');
         safeCode = safeCode.replace(/loadFont\s*\([^)]*\)/g, '""');
         safeCode = safeCode.replace(/loadJSON\s*\([^)]*\)/g, '{}');
         safeCode = safeCode.replace(/loadStrings\s*\([^)]*\)/g, '[]');
@@ -645,6 +647,7 @@ async function renderCode(code, seed, runId, options = {}) {
                 return img;
             } catch(e) { return { width: 100, height: 100 }; }
         };
+        window.loadTexture = window.loadImage;
         
         // Math and casing constants
         const mathConsts = {
@@ -838,6 +841,7 @@ async function renderCode(code, seed, runId, options = {}) {
                 return {};
             }
         };
+        window.p5.prototype.loadTexture = window.p5.prototype.loadImage;
         // Safe image() drawer that ignores null/undefined
         const _origImage = window.p5.prototype.image;
         window.p5.prototype.image = function(img, ...args) {
@@ -846,6 +850,16 @@ async function renderCode(code, seed, runId, options = {}) {
                 return _origImage.apply(this, [img, ...args]);
             } catch(e) {}
         };
+        // Safe texture() drawer that ignores null/undefined
+        const _origTexture = window.p5.prototype.texture;
+        if (_origTexture) {
+            window.p5.prototype.texture = function(tex, ...args) {
+                if (!tex) return;
+                try {
+                    return _origTexture.apply(this, [tex, ...args]);
+                } catch(e) {}
+            };
+        }
         const _origCreateCanvas2 = window.p5.prototype.createCanvas;
         window.p5.prototype.createCanvas = function(...args) {
             const result = _origCreateCanvas2.apply(this, args);

@@ -36,10 +36,14 @@ class ModelConfig(BaseModel):
     device_map: str = "auto"
 
 class TrainingConfig(BaseModel):
+    model_config = {"extra": "allow"}
+
     batch_size: int
-    group_size: int
-    max_steps: int
-    checkpoint_freq: int
+    group_size: int = 4
+    max_steps: int = 200
+    checkpoint_freq: int = 50
+    learning_rate: float = 5e-6
+    gradient_accumulation_steps: Optional[int] = 1
 
 class GenerationConfig(BaseModel):
     max_new_tokens: int

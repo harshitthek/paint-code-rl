@@ -386,6 +386,23 @@ function draw(){
 }
 `,
         expectSuccess: true
+    },
+    {
+        name: "22. Kaggle Rollout 12: Hallucinated loadTexture and texture() calls",
+        code: `
+let tex;
+function setup(){
+    createCanvas(600, 600, WEBGL);
+    background(245, 243, 238);
+    tex = loadTexture("wood_grain.png");
+}
+function draw(){
+    if (tex) texture(tex);
+    brush.set('watercolor', '#4a90e2', 2);
+    brush.line(-100, 0, 100, 0);
+}
+`,
+        expectSuccess: true
     }
 ];
 

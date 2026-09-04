@@ -414,7 +414,7 @@ class PaintGRPOTrainer:
         batch_size, num_gens = self._get_safe_batch_params()
         max_new_tokens = self._get_max_new_tokens()
         steps = max_steps or (self.config.training.max_steps if self.config else 100)
-        lr = self.config.training.learning_rate if self.config else 5e-6
+        lr = getattr(self.config.training, "learning_rate", 5e-6) if (self.config and hasattr(self.config, "training") and self.config.training) else 5e-6
         
         print(f"[PaintGRPOTrainer] Training with real GRPOTrainer:")
         print(f"  batch_size={batch_size}, num_generations={num_gens}")
@@ -559,7 +559,7 @@ class PaintGRPOTrainer:
         cycles_to_run = 1
         all_metrics = []
         
-        lr = self.config.training.learning_rate if self.config and hasattr(self.config, 'training') and self.config.training else 5e-6
+        lr = getattr(self.config.training, "learning_rate", 5e-6) if (self.config and hasattr(self.config, "training") and self.config.training) else 5e-6
         print("\n[PaintGRPOTrainer] Cyclic Training Started")
         print(f"  Steps/cycle: {steps_per_cycle} | Batch: {batch_size} | Group: {num_gens}")
         print(f"  Max tokens: {max_new_tokens} | Device: {self.device} | LR: {lr}")

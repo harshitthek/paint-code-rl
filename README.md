@@ -3,7 +3,7 @@
 [![GitHub Release](https://img.shields.io/github/v/release/harshitthek/paint-code-rl?color=blue&label=Release)](https://github.com/harshitthek/paint-code-rl/releases)
 [![Hugging Face Model](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-HarshittheK%2Fpaint--code--rl--lora-ffd21e.svg)](https://huggingface.co/HarshittheK/paint-code-rl-lora)
 [![Open In Kaggle](https://kaggle.com/static/images/open-in-kaggle.svg)](https://www.kaggle.com/code)
-[![Tests](https://img.shields.io/badge/Tests-148%20Passing%20(100%25)-brightgreen.svg)](TEST_STATUS.md)
+[![Tests](https://img.shields.io/badge/Tests-149%20Passing%20(100%25)-brightgreen.svg)](TEST_STATUS.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%20%7C%203.11-blue.svg)](pyproject.toml)
 
@@ -38,11 +38,11 @@ STATUS:
 Phase-0 Research Prototype — Production Hardened & Multi-Signal Shaped
 
 Test Coverage:
-148/148 TESTS PASSING (100% GREEN)
+149/149 TESTS PASSING (100% GREEN)
   - 107 Python Unit, Integration, Hardening & Telemetry Tests (pytest)
   - 10 Node.js Sandbox Security Smoke Tests (npm test)
   - 10 WebGL / p5.brush Visual Corpus Tests (node renderer/test_corpus.js)
-  - 21 WebGL Adversarial Stress Tests (node renderer/test_adversarial_corpus.js)
+  - 22 WebGL Adversarial Stress Tests (node renderer/test_adversarial_corpus.js)
 
 Hardware Targets:
   - Apple Silicon M4 (16GB+): Physical MPS & Metal WebGL validation verified
@@ -122,7 +122,7 @@ cd ..
 # Full Python test suite (107 pytest tests: unit, rewards, edge cases, numerical hardening)
 python -m pytest tests/ -v
 
-# Renderer security smoke tests (10 tests), visual corpus (10 tests), and adversarial stress suite (21 tests)
+# Renderer security smoke tests (10 tests), visual corpus (10 tests), and adversarial stress suite (22 tests)
 cd renderer
 npm test
 node test_corpus.js
@@ -201,7 +201,7 @@ python scripts/upload_model.py --checkpoint artifacts/checkpoints/checkpoint-50 
 ### Architecture & System Design
 - [System Architecture Specification](docs/architecture/SYSTEM_ARCHITECTURE.md) — Comprehensive end-to-end subsystem specifications and dataflows.
 - [Adversarial Red-Team & Architecture Synthesis](docs/research/ARCHITECTURAL_REDTEAM_AND_SYNTHESIS.md) — Analysis of 5 naive anti-patterns and battle-tested solutions.
-- [Test Status & Verification Report](TEST_STATUS.md) — 148-test verification breakdown.
+- [Test Status & Verification Report](TEST_STATUS.md) — 149-test verification breakdown.
 - [Final Implementation Status](FINAL_IMPLEMENTATION_STATUS.md) — Component status and verification matrix.
 
 ### Architecture Decision Records (ADRs)

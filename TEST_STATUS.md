@@ -1,6 +1,6 @@
 # Test Status & Verification Report
 
-**Total Test Count:** 148 / 148 Passed (100% Green)
+**Total Test Count:** 149 / 149 Passed (100% Green)
 
 ---
 
@@ -52,9 +52,9 @@
 
 ---
 
-## 4. Node.js Adversarial Stress Suite (`node test_adversarial_corpus.js`) — 21/21 Passed
+## 4. Node.js Adversarial Stress Suite (`node test_adversarial_corpus.js`) — 22/22 Passed
 
 | Category | Count | Status | Description |
 | :--- | :--- | :--- | :--- |
 | Synthetic Syntax & Runtime Traps | 10 | `PASSED` | Fake constructors, shadowed globals, unquoted params, proxy traps, forced errors |
-| Real Kaggle Rollout Edge Cases | 11 | `PASSED` | ES imports, DOMContentLoaded wrappers, math constants, camera calls, color arguments |
+| Real Kaggle Rollout Edge Cases | 12 | `PASSED` | ES imports, DOMContentLoaded wrappers, math constants, camera calls, color arguments, loadTexture/texture |
